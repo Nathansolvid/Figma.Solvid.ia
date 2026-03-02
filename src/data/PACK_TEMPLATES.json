@@ -1,0 +1,295 @@
+{
+  "templates": [
+    {
+      "id": "template-banque",
+      "code": "banque",
+      "name": "Pack Banque",
+      "description": "Financement durable, due diligence ESG des clients, scoring climat",
+      "category": "banque",
+      "checklistTemplateItems": [
+        {
+          "code": "E-GHG-1",
+          "label": "Émissions GES Scope 1 du portefeuille",
+          "requirementLevel": "MANDATORY",
+          "category": "E",
+          "description": "Émissions directes des actifs financés"
+        },
+        {
+          "code": "E-GHG-2",
+          "label": "Émissions GES Scope 2 du portefeuille",
+          "requirementLevel": "MANDATORY",
+          "category": "E",
+          "description": "Émissions indirectes liées à l'énergie"
+        },
+        {
+          "code": "E-GHG-3",
+          "label": "Émissions GES Scope 3 du portefeuille",
+          "requirementLevel": "RECOMMENDED",
+          "category": "E",
+          "description": "Autres émissions indirectes"
+        },
+        {
+          "code": "E-WATER-1",
+          "label": "Consommation d'eau des clients financés",
+          "requirementLevel": "RECOMMENDED",
+          "category": "E",
+          "description": "Volume d'eau consommé par les actifs financés"
+        },
+        {
+          "code": "S-EMP-1",
+          "label": "Politiques sociales des clients",
+          "requirementLevel": "MANDATORY",
+          "category": "S",
+          "description": "Existence de politiques sociales formalisées"
+        },
+        {
+          "code": "S-DIVERSITY-1",
+          "label": "Diversité dans les équipes financées",
+          "requirementLevel": "RECOMMENDED",
+          "category": "S",
+          "description": "Indicateurs de diversité des clients"
+        },
+        {
+          "code": "G-BOARD-1",
+          "label": "Gouvernance ESG des clients",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Présence de comité ESG ou responsable dédié"
+        },
+        {
+          "code": "G-RISK-1",
+          "label": "Évaluation risque climat",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Analyse des risques climatiques du portefeuille"
+        }
+      ],
+      "defaultKPIs": [
+        {
+          "code": "E-GHG-1",
+          "name": "Émissions GES Scope 1",
+          "unit": "tCO2e",
+          "category": "E",
+          "calculationType": "direct"
+        },
+        {
+          "code": "E-GHG-2",
+          "name": "Émissions GES Scope 2",
+          "unit": "tCO2e",
+          "category": "E",
+          "calculationType": "direct"
+        },
+        {
+          "code": "E-GHG-TOTAL",
+          "name": "Émissions GES Totales",
+          "unit": "tCO2e",
+          "category": "E",
+          "calculationType": "computed",
+          "formula": "E-GHG-1 + E-GHG-2 + E-GHG-3"
+        },
+        {
+          "code": "S-EMP-1",
+          "name": "Clients avec politique sociale",
+          "unit": "%",
+          "category": "S",
+          "calculationType": "direct"
+        },
+        {
+          "code": "G-BOARD-1",
+          "name": "Clients avec gouvernance ESG",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "direct"
+        }
+      ]
+    },
+    {
+      "id": "template-donneur-ordre",
+      "code": "donneur-ordre",
+      "name": "Pack Donneur d'Ordre",
+      "description": "Gestion supply chain ESG, questionnaires fournisseurs, cartographie risques",
+      "category": "donneur-ordre",
+      "checklistTemplateItems": [
+        {
+          "code": "E-SUPPLIERS-1",
+          "label": "Cartographie émissions fournisseurs",
+          "requirementLevel": "MANDATORY",
+          "category": "E",
+          "description": "Mapping des émissions GES de la supply chain"
+        },
+        {
+          "code": "E-SUPPLIERS-2",
+          "label": "Plans d'action décarbonation fournisseurs",
+          "requirementLevel": "RECOMMENDED",
+          "category": "E",
+          "description": "Engagements de réduction des fournisseurs clés"
+        },
+        {
+          "code": "S-SUPPLIERS-1",
+          "label": "Audits sociaux fournisseurs",
+          "requirementLevel": "MANDATORY",
+          "category": "S",
+          "description": "Audits des conditions de travail"
+        },
+        {
+          "code": "S-SUPPLIERS-2",
+          "label": "Certifications fournisseurs",
+          "requirementLevel": "RECOMMENDED",
+          "category": "S",
+          "description": "ISO, SA8000, B-Corp, etc."
+        },
+        {
+          "code": "G-SUPPLIERS-1",
+          "label": "Code de conduite fournisseurs",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Charte signée par les fournisseurs"
+        },
+        {
+          "code": "G-SUPPLIERS-2",
+          "label": "Évaluation risques supply chain",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Analyse des risques ESG par fournisseur"
+        }
+      ],
+      "defaultKPIs": [
+        {
+          "code": "E-SUPPLIERS-1",
+          "name": "Émissions Scope 3 Supply Chain",
+          "unit": "tCO2e",
+          "category": "E",
+          "calculationType": "direct"
+        },
+        {
+          "code": "S-SUPPLIERS-1",
+          "name": "Fournisseurs audités",
+          "unit": "%",
+          "category": "S",
+          "calculationType": "direct"
+        },
+        {
+          "code": "G-SUPPLIERS-1",
+          "name": "Fournisseurs avec charte signée",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "direct"
+        }
+      ]
+    },
+    {
+      "id": "template-questionnaire",
+      "code": "questionnaire",
+      "name": "Pack Questionnaire",
+      "description": "Templates prêts à l'emploi pour collecte de données ESG",
+      "category": "questionnaire",
+      "checklistTemplateItems": [
+        {
+          "code": "Q-ENV-1",
+          "label": "Questions environnement",
+          "requirementLevel": "MANDATORY",
+          "category": "E",
+          "description": "Questionnaire environnemental standardisé"
+        },
+        {
+          "code": "Q-SOC-1",
+          "label": "Questions social",
+          "requirementLevel": "MANDATORY",
+          "category": "S",
+          "description": "Questionnaire social standardisé"
+        },
+        {
+          "code": "Q-GOV-1",
+          "label": "Questions gouvernance",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Questionnaire gouvernance standardisé"
+        }
+      ],
+      "defaultKPIs": [
+        {
+          "code": "Q-RESPONSE-RATE",
+          "name": "Taux de réponse",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "direct"
+        },
+        {
+          "code": "Q-COMPLETENESS",
+          "name": "Taux de complétude",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "direct"
+        }
+      ]
+    },
+    {
+      "id": "template-pre-audit",
+      "code": "pre-audit",
+      "name": "Pack Pré-Audit",
+      "description": "Préparation audit externe avec checklist complète et revue documentaire",
+      "category": "pre-audit",
+      "checklistTemplateItems": [
+        {
+          "code": "A-DOC-1",
+          "label": "Rapport extra-financier",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "DPEF ou équivalent"
+        },
+        {
+          "code": "A-DOC-2",
+          "label": "Méthodologie de calcul",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Documentation des méthodes de calcul"
+        },
+        {
+          "code": "A-DOC-3",
+          "label": "Preuves documentaires",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Fichiers sources pour chaque indicateur"
+        },
+        {
+          "code": "A-PROC-1",
+          "label": "Procédures de collecte",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Processus de collecte des données"
+        },
+        {
+          "code": "A-PROC-2",
+          "label": "Contrôles internes",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Dispositif de contrôle interne"
+        },
+        {
+          "code": "A-TRACE-1",
+          "label": "Traçabilité complète",
+          "requirementLevel": "MANDATORY",
+          "category": "G",
+          "description": "Audit trail de toutes les modifications"
+        }
+      ],
+      "defaultKPIs": [
+        {
+          "code": "A-READINESS",
+          "name": "Niveau de préparation audit",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "computed",
+          "formula": "(Items complétés / Items totaux) * 100"
+        },
+        {
+          "code": "A-DOC-COVERAGE",
+          "name": "Couverture documentaire",
+          "unit": "%",
+          "category": "G",
+          "calculationType": "direct"
+        }
+      ]
+    }
+  ]
+}

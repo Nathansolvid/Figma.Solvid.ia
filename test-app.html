@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Solvid.IA</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0A3B2E 0%, #059669 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 48px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #0A3B2E;
+            margin-bottom: 8px;
+            font-size: 32px;
+        }
+        .highlight { color: #10B981; }
+        p {
+            color: #6B7280;
+            margin-bottom: 32px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #F0FDF4;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #10B981;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status-text {
+            color: #065F46;
+            font-weight: 500;
+        }
+        .error {
+            background: #FEF2F2;
+            color: #991B1B;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px 24px;
+            background: #059669;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #047857;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Solvid<span class="highlight">.IA</span></h1>
+        <p>ESG Audit-Ready Data Room</p>
+        
+        <div class="status">
+            <div class="spinner"></div>
+            <span class="status-text">Chargement de l'application...</span>
+        </div>
+        
+        <div class="error" id="error">
+            <strong>Erreur de chargement</strong>
+            <p id="error-message"></p>
+        </div>
+        
+        <button class="btn" onclick="window.location.reload()">Recharger</button>
+    </div>
+    
+    <script>
+        // Vérifier que l'application se charge
+        setTimeout(() => {
+            const root = document.getElementById('root');
+            if (!root || !root.children.length) {
+                document.querySelector('.status').style.display = 'none';
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'block';
+                document.getElementById('error-message').textContent = 
+                    'L\'application React ne s\'est pas chargée. Vérifiez la console pour plus de détails.';
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

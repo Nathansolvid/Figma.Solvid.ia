@@ -1,0 +1,449 @@
+{
+  "templates": [
+    {
+      "id": "pack-template-1",
+      "code": "PACK_DONNEUR_ORDRE",
+      "name": "Réponse Donneur d'Ordre",
+      "description": "Pack standardisé pour répondre aux demandes ESG des donneurs d'ordre (grands groupes, achats responsables). Inclut les indicateurs E/S/G clés et les preuves attendues par les services Achats.",
+      "icon": "🏢",
+      "default_kpis": [
+        "ENERGY_TOTAL_KWH",
+        "SCOPE1_CO2",
+        "SCOPE2_CO2",
+        "HEADCOUNT",
+        "TURNOVER_RATE",
+        "WASTE_TOTAL"
+      ],
+      "required_evidence_types": [
+        "INVOICE_ENERGY",
+        "HR_EXPORT",
+        "WASTE_PROVIDER_DOC",
+        "CARBON_METHOD"
+      ],
+      "checklist_template_items": [
+        {
+          "code": "ORG_SCOPE_DEFINED",
+          "label": "Périmètre organisationnel défini (entités, sites)",
+          "requirement_level": "MANDATORY",
+          "description": "Le périmètre de consolidation doit être clairement défini : quelles entités, quels sites sont inclus dans le reporting ?"
+        },
+        {
+          "code": "PERIOD_DEFINED",
+          "label": "Période de reporting définie (année fiscale, année civile)",
+          "requirement_level": "MANDATORY",
+          "description": "La période couverte doit être explicite (ex: 01/01/2024 - 31/12/2024)"
+        },
+        {
+          "code": "DATA_SOURCES_LISTED",
+          "label": "Sources de données listées et traçables",
+          "requirement_level": "MANDATORY",
+          "description": "Chaque donnée doit avoir une source identifiable (facture, export SIRH, base carbone, etc.)"
+        },
+        {
+          "code": "EVIDENCE_MIN_1_PER_KPI",
+          "label": "Au moins 1 preuve par KPI critique",
+          "requirement_level": "MANDATORY",
+          "description": "Les KPIs environnementaux (énergie, carbone, déchets) et sociaux (effectifs) doivent avoir au moins une pièce justificative"
+        },
+        {
+          "code": "EXPORT_READY",
+          "label": "Export PDF + ZIP prêt pour transmission",
+          "requirement_level": "MANDATORY",
+          "description": "Le package final (synthèse PDF + annexes ZIP) doit être généré et prêt à envoyer au donneur d'ordre"
+        },
+        {
+          "code": "METHODOLOGY_EXPLAINED",
+          "label": "Méthodologie de calcul explicitée (recommandé)",
+          "requirement_level": "RECOMMENDED",
+          "description": "Pour les KPIs calculés (intensité carbone, ratios), la méthode doit être documentée"
+        }
+      ],
+      "export_layout": {
+        "sections": [
+          {
+            "order": 1,
+            "name": "Présentation entreprise",
+            "fields": ["name", "industry", "headcount", "period"]
+          },
+          {
+            "order": 2,
+            "name": "Indicateurs Environnementaux",
+            "kpis": ["ENERGY_TOTAL_KWH", "SCOPE1_CO2", "SCOPE2_CO2", "WASTE_TOTAL"]
+          },
+          {
+            "order": 3,
+            "name": "Indicateurs Sociaux",
+            "kpis": ["HEADCOUNT", "TURNOVER_RATE"]
+          },
+          {
+            "order": 4,
+            "name": "Inventaire des preuves",
+            "include_evidence_table": true
+          }
+        ]
+      },
+      "folder_suggestions": [
+        {
+          "name": "Environnement - Énergie & Carbone",
+          "category": "ENVIRONMENTAL"
+        },
+        {
+          "name": "Environnement - Déchets",
+          "category": "ENVIRONMENTAL"
+        },
+        {
+          "name": "Social - Effectifs & Formation",
+          "category": "SOCIAL"
+        }
+      ],
+      "is_active": true,
+      "estimated_completion_time_hours": 8,
+      "target_audience": "PME/ETI fournisseurs de grands groupes"
+    },
+    {
+      "id": "pack-template-2",
+      "code": "PACK_QUESTIONNAIRE",
+      "name": "Questionnaire ESG",
+      "description": "Pack pour répondre aux questionnaires ESG (EcoVadis, Suppliers Ethical Data Exchange, questionnaires investisseurs). Structure flexible pour s'adapter à différents référentiels.",
+      "icon": "📋",
+      "default_kpis": [
+        "TOTAL_CO2",
+        "ENERGY_TOTAL_KWH",
+        "HEADCOUNT",
+        "ACCIDENT_RATE",
+        "TRAINING_HOURS"
+      ],
+      "required_evidence_types": [
+        "HR_EXPORT",
+        "HSE_REPORT",
+        "INVOICE_ENERGY",
+        "TRAINING_RECORDS"
+      ],
+      "checklist_template_items": [
+        {
+          "code": "QUESTIONNAIRE_TEMPLATE_SELECTED",
+          "label": "Template de questionnaire identifié (EcoVadis, SEDEX, autre)",
+          "requirement_level": "MANDATORY",
+          "description": "Préciser quel questionnaire doit être complété (ex: EcoVadis Advanced, SEDEX SAQ)"
+        },
+        {
+          "code": "ANSWERS_VERSIONED",
+          "label": "Réponses versionnées et horodatées",
+          "requirement_level": "MANDATORY",
+          "description": "Chaque réponse doit être associée à une date et une version (traçabilité)"
+        },
+        {
+          "code": "SOURCES_LINKED",
+          "label": "Chaque réponse liée à une source vérifiable",
+          "requirement_level": "MANDATORY",
+          "description": "Pour chaque réponse (texte ou chiffre), indiquer la source (document, base de données, etc.)"
+        },
+        {
+          "code": "EVIDENCE_UPLOADED",
+          "label": "Preuves uploadées pour questions sensibles",
+          "requirement_level": "MANDATORY",
+          "description": "Les questions sur carbone, santé-sécurité, formation doivent avoir des preuves (factures, rapports, attestations)"
+        },
+        {
+          "code": "PEER_REVIEW_DONE",
+          "label": "Revue par un pair (consultant ou responsable interne)",
+          "requirement_level": "RECOMMENDED",
+          "description": "Les réponses doivent être relues par une personne compétente avant soumission"
+        }
+      ],
+      "export_layout": {
+        "sections": [
+          {
+            "order": 1,
+            "name": "Vue d'ensemble",
+            "fields": ["name", "industry", "period", "questionnaire_type"]
+          },
+          {
+            "order": 2,
+            "name": "Réponses par thématique",
+            "subsections": ["Environnement", "Social", "Gouvernance"]
+          },
+          {
+            "order": 3,
+            "name": "Preuves associées",
+            "include_evidence_table": true
+          }
+        ]
+      },
+      "folder_suggestions": [
+        {
+          "name": "Environnement - Émissions & Énergie",
+          "category": "ENVIRONMENTAL"
+        },
+        {
+          "name": "Social - RH & Formation",
+          "category": "SOCIAL"
+        },
+        {
+          "name": "Social - Santé & Sécurité",
+          "category": "SOCIAL"
+        }
+      ],
+      "is_active": true,
+      "estimated_completion_time_hours": 12,
+      "target_audience": "PME/ETI répondant à EcoVadis, SEDEX, questionnaires investisseurs"
+    },
+    {
+      "id": "pack-template-3",
+      "code": "PACK_BANQUE",
+      "name": "Dossier Banque / Investisseurs",
+      "description": "Pack pour répondre aux demandes ESG des banques (prêts verts, financement durable) et investisseurs (due diligence ESG, SFDR). Focus sur gouvernance et trajectoire carbone.",
+      "icon": "💰",
+      "default_kpis": [
+        "TOTAL_CO2",
+        "ENERGY_TOTAL_KWH",
+        "CARBON_TARGET",
+        "GOV_POLICY_EXISTS",
+        "BOARD_DIVERSITY",
+        "ETHICAL_INCIDENTS"
+      ],
+      "required_evidence_types": [
+        "CARBON_METHOD",
+        "TARGET_DOC",
+        "INVOICE_ENERGY",
+        "POLICY_DOC",
+        "BOARD_COMPOSITION"
+      ],
+      "checklist_template_items": [
+        {
+          "code": "METHOD_EXPLAINED_IN_TRANSPARENCY",
+          "label": "Méthodologie carbone explicitée (GHG Protocol, Bilan Carbone, etc.)",
+          "requirement_level": "MANDATORY",
+          "description": "La méthode de calcul des émissions GES doit être documentée et traçable (icône 'i' transparence)"
+        },
+        {
+          "code": "EVIDENCE_ATTACHED_CRITICAL",
+          "label": "Preuves attachées pour tous les indicateurs critiques",
+          "requirement_level": "MANDATORY",
+          "description": "Carbone, énergie, objectifs de réduction : chaque valeur doit avoir une pièce justificative"
+        },
+        {
+          "code": "ONE_PAGER_READY",
+          "label": "One-pager ESG synthétique prêt",
+          "requirement_level": "MANDATORY",
+          "description": "Document d'1 page résumant : activité, empreinte carbone, objectifs, gouvernance"
+        },
+        {
+          "code": "CARBON_TRAJECTORY",
+          "label": "Trajectoire de réduction carbone définie (objectif 2030/2050)",
+          "requirement_level": "RECOMMENDED",
+          "description": "Si l'entreprise s'engage, documenter les objectifs de réduction (ex: -50% d'ici 2030)"
+        },
+        {
+          "code": "GOVERNANCE_STRUCTURE",
+          "label": "Structure de gouvernance ESG formalisée",
+          "requirement_level": "RECOMMENDED",
+          "description": "Préciser qui pilote l'ESG (comité, responsable, fréquence de revue)"
+        }
+      ],
+      "export_layout": {
+        "sections": [
+          {
+            "order": 1,
+            "name": "Executive Summary",
+            "fields": ["name", "industry", "period", "total_co2", "carbon_target"]
+          },
+          {
+            "order": 2,
+            "name": "Empreinte Carbone & Trajectoire",
+            "kpis": ["TOTAL_CO2", "ENERGY_TOTAL_KWH", "CARBON_TARGET"]
+          },
+          {
+            "order": 3,
+            "name": "Gouvernance ESG",
+            "kpis": ["GOV_POLICY_EXISTS", "BOARD_DIVERSITY", "ETHICAL_INCIDENTS"]
+          },
+          {
+            "order": 4,
+            "name": "Méthodologie & Preuves",
+            "include_evidence_table": true,
+            "include_calculation_detail": true
+          }
+        ]
+      },
+      "folder_suggestions": [
+        {
+          "name": "Environnement - Empreinte Carbone",
+          "category": "ENVIRONMENTAL"
+        },
+        {
+          "name": "Gouvernance - Politiques & Structure",
+          "category": "GOVERNANCE"
+        },
+        {
+          "name": "Trajectoire & Objectifs",
+          "category": "GOVERNANCE"
+        }
+      ],
+      "is_active": true,
+      "estimated_completion_time_hours": 10,
+      "target_audience": "ETI/Grands Comptes demandant financement vert ou levée de fonds"
+    },
+    {
+      "id": "pack-template-4",
+      "code": "PACK_PREAUDIT",
+      "name": "Pré-Audit / Audit-Ready",
+      "description": "Pack pour préparer un audit externe ESG (assurance limitée, vérification tierce partie). Exigences maximales de traçabilité, preuves systématiques, audit trail complet. Ce pack est le plus rigoureux.",
+      "icon": "🔍",
+      "default_kpis": [
+        "DATA_COMPLETENESS_SCORE",
+        "EVIDENCE_COVERAGE_SCORE"
+      ],
+      "required_evidence_types": [
+        "SOURCE_REGISTRY",
+        "AUDIT_LOG_EXPORT",
+        "ALL_SUPPORTING_DOCS"
+      ],
+      "checklist_template_items": [
+        {
+          "code": "ALL_MANDATORY_PROVIDED",
+          "label": "Tous les items obligatoires fournis (100%)",
+          "requirement_level": "MANDATORY",
+          "description": "Aucun item MANDATORY ne peut être à statut MISSING ou REJECTED"
+        },
+        {
+          "code": "NO_EXPIRED_FACTORS",
+          "label": "Aucun facteur d'émission ou donnée expirée",
+          "requirement_level": "MANDATORY",
+          "description": "Les facteurs d'émission carbone doivent être à jour (Base Carbone version actuelle)"
+        },
+        {
+          "code": "READY_FOR_REVIEW_APPROVED_BY_CONSULTANT",
+          "label": "Pré-validation par consultant avant soumission auditeur",
+          "requirement_level": "MANDATORY",
+          "description": "Un consultant certifié doit avoir marqué le pack comme 'Ready for Review' avant passage à l'auditeur"
+        },
+        {
+          "code": "AUDIT_TRAIL_COMPLETE",
+          "label": "Audit trail complet et exportable",
+          "requirement_level": "MANDATORY",
+          "description": "Toutes les actions critiques doivent être loguées et exportables en CSV"
+        },
+        {
+          "code": "EVIDENCE_100_PERCENT",
+          "label": "100% des KPIs ont au moins 1 preuve",
+          "requirement_level": "MANDATORY",
+          "description": "Chaque indicateur calculé doit avoir au moins une pièce justificative associée"
+        },
+        {
+          "code": "THIRD_PARTY_VERIFICATION",
+          "label": "Vérification tierce partie réalisée (si applicable)",
+          "requirement_level": "RECOMMENDED",
+          "description": "Pour les entreprises CSRD, un auditeur externe doit avoir validé les données"
+        },
+        {
+          "code": "MATERIALITY_ASSESSMENT_DONE",
+          "label": "Analyse de double matérialité réalisée (CSRD uniquement)",
+          "requirement_level": "RECOMMENDED",
+          "description": "Si l'entreprise est soumise CSRD, l'analyse de matérialité doit être documentée"
+        }
+      ],
+      "export_layout": {
+        "sections": [
+          {
+            "order": 1,
+            "name": "Certification Audit-Ready",
+            "fields": ["name", "period", "audit_readiness_score", "completion_date"]
+          },
+          {
+            "order": 2,
+            "name": "Complétude & Qualité",
+            "kpis": ["DATA_COMPLETENESS_SCORE", "EVIDENCE_COVERAGE_SCORE"]
+          },
+          {
+            "order": 3,
+            "name": "Checklist Audit (détaillée)",
+            "include_checklist_full": true
+          },
+          {
+            "order": 4,
+            "name": "Tous les KPIs avec transparence",
+            "include_all_kpis": true,
+            "include_calculation_detail": true
+          },
+          {
+            "order": 5,
+            "name": "Registre des Preuves (exhaustif)",
+            "include_evidence_table": true,
+            "include_evidence_metadata": true
+          },
+          {
+            "order": 6,
+            "name": "Audit Trail Complet",
+            "include_audit_log": true
+          },
+          {
+            "order": 7,
+            "name": "Déclaration de conformité",
+            "include_compliance_statement": true
+          }
+        ]
+      },
+      "folder_suggestions": [
+        {
+          "name": "Audit Trail & Documentation",
+          "category": "GOVERNANCE"
+        },
+        {
+          "name": "Registre des Preuves",
+          "category": "GOVERNANCE"
+        },
+        {
+          "name": "Complétude & Contrôles",
+          "category": "GOVERNANCE"
+        }
+      ],
+      "is_active": true,
+      "estimated_completion_time_hours": 20,
+      "target_audience": "Entreprises préparant un audit CSRD, vérification tierce partie, due diligence rigoureuse"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2026-01-30",
+    "total_templates": 4,
+    "created_by": "Solution Architect Solvid.IA",
+    "description": "Templates de Packs pour architecture ESG Audit-Ready Data Room. Ces templates sont instanciés lors de la création d'un Pack dans un Dossier. Chaque template définit : KPIs par défaut, preuves requises, checklist automatique, layout d'export."
+  },
+  "kpi_mappings": {
+    "ENERGY_TOTAL_KWH": "Consommation totale d'énergie (électricité + gaz) en kWh",
+    "SCOPE1_CO2": "Émissions GES Scope 1 (combustion directe) en tCO2e",
+    "SCOPE2_CO2": "Émissions GES Scope 2 (électricité, chaleur achetée) en tCO2e",
+    "SCOPE3_CO2": "Émissions GES Scope 3 (chaîne de valeur) en tCO2e",
+    "TOTAL_CO2": "Émissions GES totales (Scope 1+2+3) en tCO2e",
+    "HEADCOUNT": "Effectif total en ETP (Équivalent Temps Plein)",
+    "TURNOVER_RATE": "Taux de rotation du personnel en %",
+    "WASTE_TOTAL": "Production totale de déchets en tonnes",
+    "ACCIDENT_RATE": "Taux de fréquence des accidents du travail",
+    "TRAINING_HOURS": "Heures de formation totales",
+    "CARBON_TARGET": "Objectif de réduction carbone (texte : ex '-50% d'ici 2030')",
+    "GOV_POLICY_EXISTS": "Politique ESG formalisée (Oui/Non + lien vers document)",
+    "BOARD_DIVERSITY": "Diversité au conseil d'administration (% femmes)",
+    "ETHICAL_INCIDENTS": "Nombre d'incidents éthiques déclarés",
+    "DATA_COMPLETENESS_SCORE": "Score de complétude des données (0-100)",
+    "EVIDENCE_COVERAGE_SCORE": "Score de couverture des preuves (0-100)"
+  },
+  "evidence_type_mappings": {
+    "INVOICE_ENERGY": "Facture d'énergie (électricité, gaz)",
+    "HR_EXPORT": "Export SIRH (effectifs, turnover, formation)",
+    "WASTE_PROVIDER_DOC": "Document prestataire déchets (certificat, facture)",
+    "CARBON_METHOD": "Document méthodologie carbone (PDF, note de calcul)",
+    "HSE_REPORT": "Rapport Hygiène Sécurité Environnement",
+    "TRAINING_RECORDS": "Registre de formations",
+    "TARGET_DOC": "Document objectifs de réduction (plan climat, feuille de route)",
+    "POLICY_DOC": "Politique ESG / RSE / Code de conduite",
+    "BOARD_COMPOSITION": "Composition du conseil d'administration",
+    "SOURCE_REGISTRY": "Registre des sources de données",
+    "AUDIT_LOG_EXPORT": "Export de l'audit trail (CSV)",
+    "ALL_SUPPORTING_DOCS": "Tous documents supports (factures, attestations, rapports)"
+  },
+  "requirement_levels": {
+    "MANDATORY": "Obligatoire - Bloque la soumission 'Ready for Review' si manquant",
+    "RECOMMENDED": "Recommandé - N'empêche pas la soumission mais améliore la qualité"
+  }
+}
