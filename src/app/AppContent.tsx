@@ -26,6 +26,7 @@ import {
   CircleHelp,
   FileSpreadsheet,
 } from "lucide-react";
+// Note: Some icons above are kept for future use (sidebar sub-views may re-use them)
 import { useState, useRef, useEffect } from "react";
 import { useDossiers } from "@/contexts/DossierContext";
 import { useVSMEData } from "@/contexts/VSMEDataContext";
@@ -61,7 +62,6 @@ import { RapportIA } from "@/app/components/views/RapportIA";
 import { PreuvesWorkflowView } from "@/app/components/views/PreuvesWorkflowView";
 import { GuideAide } from "@/app/components/views/GuideAide";
 import { ERPConnectorView } from "@/app/components/views/ERPConnectorView";
-import { WelcomeModal } from "@/app/components/WelcomeModal";
 import { AIChatbot } from "@/app/components/AIChatbot";
 import CGU from "@/app/components/views/CGU";
 import PolitiqueConfidentialite from "@/app/components/views/PolitiqueConfidentialite";
@@ -162,7 +162,7 @@ export function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentDossierId, setCurrentDossierId] = useState<string | null>(null);
   const [navigationCounter, setNavigationCounter] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem("solvid-onboarding-done"));
+  // WelcomeModal removed — onboarding is now the auto-redirect to creation wizard
 
   // (legacy sidebar expand states — kept to avoid unused-variable errors)
   const [_referentielsExpanded] = useState(true);
@@ -217,6 +217,13 @@ export function AppContent() {
 
   // 🆕 Données dossier actif pour la sidebar
   const { getDossier, updateDossier, dossiers } = useDossiers();
+
+  // Auto-redirect to creation wizard if user has 0 dossiers
+  useEffect(() => {
+    if (!loading && dossiers.length === 0 && currentView === 'dashboard') {
+      setCurrentView('creation-dossier');
+    }
+  }, [loading, dossiers.length, currentView]);
   const { getValues, getActivePeriod } = useVSMEData();
   const activeDossier = currentDossierId ? getDossier(currentDossierId) : null;
   const activeWorkflowDefs = (activeDossier?.selectedWorkflows || [])
@@ -378,15 +385,18 @@ export function AppContent() {
           />
         );
       case "dashboard":
+        // State 1: 0 dossiers — welcome + value props
         if (dossiers.length === 0) {
           return (
-            <div className="max-w-4xl mx-auto p-6 space-y-8">
-              {/* Hero section */}
+            <div className="max-w-3xl mx-auto p-6 space-y-8">
+              {/* Hero banner */}
               <div className="rounded-2xl p-8 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0A3B2E 0%, #2D7A55 100%)' }}>
                 <div className="relative z-10">
-                  <h1 className="text-2xl font-bold mb-2">Bienvenue sur Solvid.IA</h1>
+                  <h1 className="text-2xl font-bold mb-2">
+                    Bienvenue, {currentUser.name}.
+                  </h1>
                   <p className="text-white/80 text-sm mb-6 max-w-md">
-                    Votre plateforme de conformité ESG & CSRD. Structurez votre reporting, collectez vos données et générez des rapports audit-ready.
+                    Créez votre premier dossier ESG pour démarrer.
                   </p>
                   <button
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:shadow-lg"
@@ -394,85 +404,106 @@ export function AppContent() {
                     onClick={() => navigateToView('creation-dossier')}
                   >
                     <Plus className="h-5 w-5" />
-                    Créer mon premier dossier ESG
+                    Créer un dossier
                   </button>
                 </div>
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 opacity-10 text-[120px] font-bold">ESG</div>
               </div>
 
-              {/* KPI cards (empty state) */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
-                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0</div>
-                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Dossiers actifs</div>
+              {/* 3 value prop cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: '#E8F5E9' }}>
+                    <Upload className="h-5 w-5" style={{ color: '#2D7A55' }} />
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1" style={{ color: '#0A3B2E' }}>Collecte structurée</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+                    47 indicateurs VSME pré-configurés, import Excel et connecteurs ERP
+                  </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
-                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0%</div>
-                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Complétion moyenne</div>
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: '#EFF6FF' }}>
+                    <Shield className="h-5 w-5" style={{ color: '#3B82F6' }} />
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1" style={{ color: '#0A3B2E' }}>Preuves traçables</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+                    Rattachez vos justificatifs à chaque indicateur avec audit trail
+                  </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
-                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0/47</div>
-                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Indicateurs VSME remplis</div>
-                </div>
-              </div>
-
-              {/* Quick actions */}
-              <div>
-                <h2 className="text-lg font-semibold mb-3" style={{ color: '#0A3B2E' }}>Démarrage rapide</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => navigateToView('creation-dossier')}
-                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#E8F5E9' }}>
-                        <Plus className="h-5 w-5" style={{ color: '#2D7A55' }} />
-                      </div>
-                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Créer un dossier</span>
-                    </div>
-                    <p className="text-xs" style={{ color: '#6b7280' }}>Initialisez un exercice annuel pour un client</p>
-                  </button>
-                  <button
-                    onClick={() => navigateToView('import')}
-                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#EFF6FF' }}>
-                        <FileSpreadsheet className="h-5 w-5" style={{ color: '#3B82F6' }} />
-                      </div>
-                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Importer des données</span>
-                    </div>
-                    <p className="text-xs" style={{ color: '#6b7280' }}>Importez un fichier Excel ou CSV avec vos données ESG</p>
-                  </button>
-                  <button
-                    onClick={() => navigateToView('referentiels')}
-                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#F5F3FF' }}>
-                        <BookOpen className="h-5 w-5" style={{ color: '#7C3AED' }} />
-                      </div>
-                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Explorer les référentiels</span>
-                    </div>
-                    <p className="text-xs" style={{ color: '#6b7280' }}>VSME, ESRS, Bilan Carbone, Social Baseline...</p>
-                  </button>
-                  <button
-                    onClick={() => navigateToView('guide-aide')}
-                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#FEF3C7' }}>
-                        <HelpCircle className="h-5 w-5" style={{ color: '#D97706' }} />
-                      </div>
-                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Guide & Aide</span>
-                    </div>
-                    <p className="text-xs" style={{ color: '#6b7280' }}>Tutoriels, glossaire ESG et FAQ</p>
-                  </button>
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3" style={{ background: '#F5F3FF' }}>
+                    <Sparkles className="h-5 w-5" style={{ color: '#7C3AED' }} />
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1" style={{ color: '#0A3B2E' }}>Rapports audit-ready</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+                    Générez des rapports conformes CSRD assistés par IA
+                  </p>
                 </div>
               </div>
             </div>
           );
         }
+
+        // State 3: 1+ dossiers but no dossier selected — show dossier list overview
+        if (!currentDossierId) {
+          return (
+            <div className="max-w-4xl mx-auto p-6 space-y-6">
+              {/* KPI row */}
+              <div className="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#E8F5E9' }}>
+                  <FolderOpen className="h-5 w-5" style={{ color: '#2D7A55' }} />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold" style={{ color: '#0A3B2E' }}>{dossiers.length}</div>
+                  <div className="text-xs" style={{ color: '#6b7280' }}>dossier{dossiers.length > 1 ? 's' : ''} actif{dossiers.length > 1 ? 's' : ''}</div>
+                </div>
+              </div>
+
+              {/* Dossier cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dossiers.map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => handleOpenDossier(d.id)}
+                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #2D7A55, #1A5F3E)' }}>
+                        {(d.providerOrg || d.name)?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate" style={{ color: '#0A3B2E' }}>{d.providerOrg || d.name}</p>
+                        <p className="text-xs" style={{ color: '#6b7280' }}>{d.fiscalYear}{d.missionType ? ` · ${d.missionType}` : ''}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#E8F5E9', color: '#2D7A55' }}>
+                        {d.status === 'completed' ? 'Terminé' : d.status === 'in-progress' ? 'En cours' : 'Brouillon'}
+                      </span>
+                      {d.updatedAt && (
+                        <span className="text-[10px]" style={{ color: '#9ca3af' }}>
+                          Modifié {new Date(d.updatedAt).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Create new button */}
+              <button
+                onClick={() => navigateToView('creation-dossier')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all hover:shadow-lg"
+                style={{ background: '#0A3B2E' }}
+              >
+                <Plus className="h-4 w-4" />
+                Créer un nouveau dossier
+              </button>
+            </div>
+          );
+        }
+
+        // State 2: 1+ dossiers with current dossier selected — show DashboardUniversal
         return (
           <DashboardUniversal
             key={`dashboard-${navigationCounter}`}
@@ -794,334 +825,45 @@ export function AppContent() {
         {/* ── Navigation ── */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5" style={{ scrollbarWidth: 'none' }}>
 
-          {/* Dashboard */}
+          {/* 1. Tableau de bord */}
           {renderNavItem("dashboard", "Tableau de bord", <LayoutDashboard className="h-4 w-4 flex-shrink-0" />)}
 
-          {/* ── Séparateur ── */}
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '6px 10px' }} />
-
-          {/* ══ Section : Contexte client ══ */}
-          {sidebarOpen && (
-            <div className="flex items-center justify-between px-2.5 pt-1 pb-1.5">
-              <p className="text-[9px] font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-                Dossier actif
-              </p>
-              {activeDossier && (
-                <button
-                  className="text-[9px] transition-all"
-                  style={{ color: 'rgba(82,183,136,0.6)' }}
-                  onClick={() => navigateToView("dossiers")}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#52B788'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'rgba(82,183,136,0.6)'; }}
-                >
-                  Changer →
-                </button>
-              )}
-            </div>
-          )}
-
-          {activeDossier ? (
-            /* ── Dossier actif ── */
+          {/* 2. Mes dossiers — with active dossier badge */}
+          {renderNavItem("dossiers", "Mes dossiers", <FolderOpen className="h-4 w-4 flex-shrink-0" />, currentView === "dossiers" || currentView === "creation-dossier" || currentView === "detail-dossier")}
+          {activeDossier && sidebarOpen && (
             <div
-              className="mx-1 rounded-[10px] px-3 py-2.5 cursor-pointer transition-all"
-              style={{ background: 'rgba(45,122,85,0.15)', border: '1px solid rgba(82,183,136,0.22)' }}
+              className="ml-7 mr-2 mb-1 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all flex items-center gap-2"
+              style={{ background: 'rgba(45,122,85,0.18)', border: '1px solid rgba(82,183,136,0.22)' }}
               onClick={() => navigateToView("detail-dossier")}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.22)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.15)'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.28)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.18)'; }}
             >
-              {sidebarOpen ? (
-                <div className="flex items-start gap-2">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-white"
-                    style={{ background: 'linear-gradient(135deg, rgba(82,183,136,0.4), rgba(45,122,85,0.5))' }}
-                  >
-                    {(activeDossier.providerOrg || activeDossier.name)?.[0]?.toUpperCase() ?? '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-semibold text-white leading-tight truncate">
-                      {activeDossier.providerOrg || activeDossier.name}
-                    </p>
-                    <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      {activeDossier.fiscalYear}{activeDossier.missionType ? ` · ${activeDossier.missionType}` : ''}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center">
-                  <div
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{ background: 'rgba(82,183,136,0.3)' }}
-                  >
-                    {(activeDossier.providerOrg || activeDossier.name)?.[0]?.toUpperCase() ?? '?'}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ── Aucun dossier sélectionné ── */
-            <div
-              className="mx-1 rounded-[10px] px-3 py-2.5"
-              style={{ border: '1px dashed rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}
-            >
-              {sidebarOpen ? (
-                <>
-                  <p className="text-[11px] text-center mb-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    Aucun client sélectionné
-                  </p>
-                  <button
-                    className="w-full text-center text-[11px] py-1.5 rounded-lg font-medium mb-1.5 transition-all"
-                    style={{ background: 'rgba(82,183,136,0.15)', color: '#52B788', border: '1px solid rgba(82,183,136,0.25)' }}
-                    onClick={() => navigateToView("dossiers")}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(82,183,136,0.25)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(82,183,136,0.15)'; }}
-                  >
-                    Sélectionner
-                  </button>
-                  <button
-                    className="w-full text-center text-[11px] py-1.5 rounded-lg transition-all"
-                    style={{ background: 'transparent', color: 'rgba(255,255,255,0.35)', border: '1px dashed rgba(255,255,255,0.1)' }}
-                    onClick={() => navigateToView("creation-dossier")}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
-                  >
-                    + Créer un dossier
-                  </button>
-                </>
-              ) : (
-                <div className="flex items-center justify-center py-0.5">
-                  <FolderOpen className="h-4 w-4" style={{ color: 'rgba(255,255,255,0.2)' }} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Séparateur ── */}
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '6px 10px' }} />
-
-          {/* ══ Section : Mes référentiels ══ */}
-          {sidebarOpen && (
-            <div className="flex items-center justify-between px-2.5 pt-1 pb-1.5">
-              <p className="text-[9px] font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-                Mes standards
-              </p>
-            </div>
-          )}
-
-          {activeDossier ? (
-            <>
-              {/* ── Tous les référentiels du dossier (boucle unifiée) ── */}
-              {activeWorkflowDefs.map(workflow => {
-                const isVSME = workflow.id === 'vsme';
-                const wBadge = WORKFLOW_BADGE[workflow.id] ?? { abbr: workflow.name.slice(0, 2).toUpperCase(), color: '#64748b' };
-                const isOpen = openRefBlocks.has(workflow.id);
-
-                // Stats de complétion pour TOUT workflow (pas seulement VSME)
-                const wfStats = getWorkflowStats(workflow);
-                const statsCount = wfStats.total > 0 ? `${wfStats.filled}/${wfStats.total}` : null;
-                const statsDone  = wfStats.filled > 0;
-                const templatesCount = isVSME ? '8 modèles' : null;
-
-                const subMenuItems = [
-                  { label: 'Importer des données',   count: null,           view: 'import' as ViewType,                 done: false,    disabled: false },
-                  { label: 'Saisie des données',      count: statsCount,    view: 'saisie-dossier' as ViewType,         done: statsDone, disabled: !currentDossierId },
-                  { label: 'Modèles Excel',           count: templatesCount, view: 'bibliotheque-templates' as ViewType, done: false,    disabled: false },
-                  { label: 'Checklist & Suivi',       count: null,           view: 'checklist-workflow' as ViewType,     done: false,    disabled: false },
-                ];
-
-                const badgeBg = isVSME
-                  ? 'linear-gradient(135deg, #2D9D5F, #1A7A45)'
-                  : wBadge.color + 'CC';
-                const ringColor = isVSME ? '#52B788' : wBadge.color;
-                const ringPct   = wfStats.pct;
-
-                return (
-                  <div
-                    key={workflow.id}
-                    className="rounded-[10px] overflow-hidden transition-all mx-1"
-                    style={{ border: isOpen ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent' }}
-                  >
-                    {/* Header */}
-                    <div style={{ borderRadius: isOpen ? '9px 9px 0 0' : '8px' }}>
-                      <button
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 transition-all"
-                        style={{
-                          background: isOpen ? 'rgba(255,255,255,0.07)' : 'transparent',
-                        }}
-                        onClick={() => toggleRefBlock(workflow.id)}
-                      >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 font-bold text-white"
-                          style={{ background: badgeBg, fontSize: wBadge.abbr.length > 2 ? '8px' : '10px' }}
-                        >
-                          {wBadge.abbr}
-                        </div>
-                        {sidebarOpen && (
-                          <>
-                            <div className="flex-1 min-w-0 text-left">
-                              <p className="text-[12px] font-semibold text-white leading-tight truncate">{workflow.name}</p>
-                              <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.38)' }}>
-                                {isVSME ? `EFRAG 2024 · ${wfStats.total} données` : `${workflow.category} · ${wfStats.total} données`}
-                              </p>
-                            </div>
-                            <ProgressRing pct={ringPct} color={ringColor} />
-                            <svg width="10" height="10" viewBox="0 0 10 10" className="flex-shrink-0 ml-0.5 transition-transform duration-200"
-                              style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', color: 'rgba(255,255,255,0.3)' }}
-                            >
-                              <path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Sous-menu */}
-                    {isOpen && sidebarOpen && (
-                      <div className="pb-1.5" style={{ background: 'rgba(0,0,0,0.15)', borderRadius: '0 0 9px 9px' }}>
-                        {subMenuItems.map(item => {
-                          const isItemActive = currentView === item.view && activeWorkflowId === workflow.id;
-                          return (
-                            <button
-                              key={item.label}
-                              className="w-full flex items-center gap-2 px-3 py-[5px] text-left relative transition-all"
-                              style={{
-                                color: item.disabled ? 'rgba(255,255,255,0.2)' : isItemActive ? 'rgba(184,228,199,0.95)' : 'rgba(255,255,255,0.45)',
-                                fontSize: '11.5px',
-                                fontWeight: isItemActive ? 500 : 400,
-                                cursor: item.disabled ? 'not-allowed' : 'pointer',
-                              }}
-                              onClick={() => {
-                                if (item.disabled) return;
-                                navigateToWorkflowView(workflow.id, item.view);
-                              }}
-                            >
-                              <span className="absolute left-[14px] top-0 bottom-0 w-px"
-                                style={{ background: isItemActive ? ringColor : 'rgba(255,255,255,0.08)' }}
-                              />
-                              <span className="w-[5px] h-[5px] rounded-full flex-shrink-0 ml-3"
-                                style={{ background: isItemActive ? ringColor : 'rgba(255,255,255,0.2)', boxShadow: isItemActive ? `0 0 5px ${ringColor}80` : undefined }}
-                              />
-                              <span className="flex-1">{item.label}</span>
-                              {item.count && (
-                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                                  style={{ background: item.done ? 'rgba(82,183,136,0.2)' : 'rgba(255,255,255,0.08)', color: item.done ? 'rgba(184,228,199,0.8)' : 'rgba(255,255,255,0.35)' }}
-                                >
-                                  {item.count}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-
-                        {/* ── Séparateur + Retirer ── */}
-                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '4px 12px' }} />
-                        <button
-                          className="w-full flex items-center gap-2 px-3 py-[5px] text-left transition-all group"
-                          style={{ fontSize: '11.5px', color: 'rgba(239,68,68,0.5)' }}
-                          onClick={() => removeWorkflow(workflow.id)}
-                          onMouseEnter={e => { e.currentTarget.style.color = 'rgba(239,68,68,0.9)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; }}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0 ml-3">
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
-                          </svg>
-                          <span>Retirer du dossier</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* ── + Ajouter un référentiel (drop zone) ── */}
-              {sidebarOpen && (
-                <button
-                  className="mx-1 flex items-center gap-2 px-3 rounded-lg text-left w-[calc(100%-8px)] transition-all"
-                  style={{
-                    fontSize: '12px', fontWeight: 500,
-                    minHeight: isDragOverAdd ? '52px' : '34px',
-                    padding: isDragOverAdd ? '10px 12px' : '7px 12px',
-                    color: isDragOverAdd ? '#52B788' : 'rgba(255,255,255,0.3)',
-                    border: isDragOverAdd ? '1.5px dashed #52B788' : '1px dashed rgba(255,255,255,0.12)',
-                    background: isDragOverAdd ? 'rgba(82,183,136,0.1)' : 'transparent',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onClick={() => navigateToView("bibliotheque-workflows")}
-                  onMouseEnter={e => {
-                    if (!isDragOverAdd) {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isDragOverAdd) {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.3)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                      e.currentTarget.style.background = 'transparent';
-                    }
-                  }}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setIsDragOverAdd(true); }}
-                  onDragLeave={() => setIsDragOverAdd(false)}
-                  onDrop={handleDropAdd}
-                >
-                  <Plus className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>{isDragOverAdd ? 'Déposer ici pour ajouter' : 'Ajouter un standard'}</span>
-                </button>
-              )}
-            </>
-          ) : (
-            /* Pas de dossier actif — message d'invite */
-            sidebarOpen && (
-              <div className="mx-1 px-3 py-2 rounded-lg text-center" style={{ color: 'rgba(255,255,255,0.22)', fontSize: '11px', fontStyle: 'italic' }}>
-                Sélectionnez d'abord un client
+              <div
+                className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[9px] font-bold text-white"
+                style={{ background: 'rgba(82,183,136,0.4)' }}
+              >
+                {(activeDossier.providerOrg || activeDossier.name)?.[0]?.toUpperCase() ?? '?'}
               </div>
-            )
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-medium text-white leading-tight truncate">
+                  {activeDossier.providerOrg || activeDossier.name}
+                </p>
+                <p className="text-[9px] leading-tight" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  {activeDossier.fiscalYear}
+                </p>
+              </div>
+            </div>
           )}
 
-          {/* ── Séparateur ── */}
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '6px 10px' }} />
+          {/* 3. Collecte */}
+          {renderNavItem("import", "Collecte", <Upload className="h-4 w-4 flex-shrink-0" />, currentView === "import" || currentView === "erp-connector" || currentView === "saisie-dossier" || currentView === "bibliotheque-templates")}
 
-          {/* ══ COLLECTE & DONNÉES ══ */}
-          {sidebarOpen && renderGroupHeader('collecte', 'Collecte & Données', <Database className="h-3 w-3 flex-shrink-0" />)}
-          {!collapsedGroups.has('collecte') && (
-            <>
-              {renderNavItem("import", "Import données", <Upload className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-4 w-4 flex-shrink-0" />)}
-              {activeDossier && renderNavItem("saisie-dossier", "Saisie indicateurs", <BarChart3 className="h-4 w-4 flex-shrink-0" />)}
-            </>
-          )}
+          {/* 4. Rapports */}
+          {renderNavItem("exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, currentView === "exports-livrables" || currentView === "rapport-ia")}
 
-          {/* ══ RAPPORTS & AUDIT ══ */}
-          {sidebarOpen && renderGroupHeader('rapports', 'Rapports & Audit', <FileText className="h-3 w-3 flex-shrink-0" />)}
-          {!collapsedGroups.has('rapports') && (
-            <>
-              {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("exports-livrables", "Exports & Livrables", <FileText className="h-4 w-4 flex-shrink-0" />)}
-              {isAuditorOrAdmin && renderNavItem("audit-center", "Contrôle qualité", <Search className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("preuves-workflow", "Justificatifs", <ClipboardCheck className="h-4 w-4 flex-shrink-0" />)}
-            </>
-          )}
+          {/* 5. Reglages */}
+          {renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, currentView === "parametres" || currentView === "guide-aide" || currentView === "glossaire" || currentView === "audit-trail")}
 
-          {/* ══ CONFIGURATION ══ */}
-          {sidebarOpen && renderGroupHeader('config', 'Configuration', <Wrench className="h-3 w-3 flex-shrink-0" />)}
-          {!collapsedGroups.has('config') && (
-            <>
-              {renderNavItem("bibliotheque-workflows", "Référentiels & Standards", <Activity className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("bibliotheque-templates", "Templates de collecte", <FileText className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("checklist-workflow", "Suivi d'avancement", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("audit-trail", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
-              {canAccessParams && renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />)}
-            </>
-          )}
-
-          {/* ══ AIDE ══ */}
-          {sidebarOpen && renderGroupHeader('aide', 'Aide', <CircleHelp className="h-3 w-3 flex-shrink-0" />)}
-          {!collapsedGroups.has('aide') && (
-            <>
-              {renderNavItem("guide-aide", "Guide & Aide", <BookOpen className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("glossaire", "Glossaire ESG", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
-            </>
-          )}
         </nav>
 
         {/* ── Footer: Déconnexion ── */}
@@ -1200,20 +942,6 @@ export function AppContent() {
           {renderView()}
         </div>
       </main>
-
-      {/* First-launch welcome modal */}
-      {showWelcome && (
-        <WelcomeModal
-          onClose={() => setShowWelcome(false)}
-          onNavigateGuide={() => {
-            setCurrentView("guide-aide");
-            setShowWelcome(false);
-          }}
-          onNavigateCreateDossier={() => {
-            setCurrentView("creation-dossier");
-          }}
-        />
-      )}
 
       {/* 🆕 Assistant IA ESG — flottant en bas à droite, accessible depuis toutes les vues */}
       <AIChatbot
