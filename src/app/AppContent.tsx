@@ -261,6 +261,11 @@ export function AppContent() {
       }
     }
 
+    // Clear workflow filter when navigating to saisie without explicit workflow
+    if (view === 'saisie-dossier' && !viewStr.includes('workflow:')) {
+      setActiveWorkflowId(null);
+    }
+
     setCurrentView(view);
     // Expose current page for contextual AI suggestions
     (window as any).__solvid_current_page = view;

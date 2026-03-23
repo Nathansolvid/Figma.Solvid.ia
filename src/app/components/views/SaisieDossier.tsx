@@ -1139,23 +1139,33 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
           </div>
         </div>
 
-        {/* 🆕 Phase 11 : Bannière workflow actif */}
+        {/* Bannière workflow actif — explique clairement le filtre */}
         {activeWorkflow && (
           <div
-            className="rounded-xl px-4 py-3 flex items-center gap-3 border-2 border-blue-200"
-            style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)' }}
+            className="rounded-xl px-4 py-3 flex items-center gap-3 border-2 border-amber-200"
+            style={{ background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' }}
           >
-            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white text-sm flex-shrink-0">
               {activeWorkflow.icon}
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-900">
-                Saisie pour : {activeWorkflow.name}
+              <p className="text-sm font-semibold text-amber-900">
+                Vue filtrée : {activeWorkflow.name}
               </p>
-              <p className="text-xs text-blue-600">
-                Sections affichées : {workflowSections?.join(', ')} — {visibleOnglets.length} onglet(s) sur {ONGLETS.length}
+              <p className="text-xs text-amber-700">
+                Seuls les indicateurs liés à ce parcours sont affichés ({visibleOnglets.length}/{ONGLETS.length} onglets).
+                Les autres indicateurs ne sont pas perdus.
               </p>
             </div>
+            <button
+              onClick={() => {
+                // Remove workflow filter by navigating to saisie without workflow
+                _onNavigate('saisie-dossier');
+              }}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              Voir tous les indicateurs
+            </button>
           </div>
         )}
 
