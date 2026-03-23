@@ -254,6 +254,16 @@ export function AppContent() {
     setCurrentView(view);
     // Expose current page for contextual AI suggestions
     (window as any).__solvid_current_page = view;
+    // Store last visited view for "resume" feature
+    if (view !== "dashboard" && view !== "quick-start" && currentDossierId) {
+      const dossier = getDossier(currentDossierId);
+      localStorage.setItem('solvid_last_view', JSON.stringify({
+        view,
+        dossierId: currentDossierId,
+        dossierName: dossier?.providerOrg || dossier?.name || 'Dossier',
+        timestamp: Date.now(),
+      }));
+    }
     if (view === "dashboard") {
       setNavigationCounter(prev => prev + 1);
     }
@@ -451,8 +461,36 @@ export function AppContent() {
 
         // State 3: 1+ dossiers but no dossier selected — show dossier list overview
         if (!currentDossierId) {
+          // "Reprendre" card: read last view from localStorage
+          const lastViewRaw = typeof window !== 'undefined' ? localStorage.getItem('solvid_last_view') : null;
+          const lastView = lastViewRaw ? (() => { try { return JSON.parse(lastViewRaw); } catch { return null; } })() : null;
+          const sevenDays = 7 * 24 * 60 * 60 * 1000;
+          const showResume = lastView && (Date.now() - lastView.timestamp) < sevenDays && lastView.dossierId && lastView.view;
+          const resumeViewLabel = showResume ? (VIEW_LABELS[lastView.view as ViewType] || lastView.view) : '';
+
           return (
             <div className="max-w-4xl mx-auto p-6 space-y-6">
+              {/* Resume card */}
+              {showResume && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-0 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-900">Reprendre votre travail</p>
+                    <p className="text-xs text-emerald-700">Vous étiez sur {lastView.dossierName} — {resumeViewLabel}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCurrentDossierId(lastView.dossierId);
+                      if (lastView.view === 'saisie-dossier') setSaisieDossierId(lastView.dossierId);
+                      if (lastView.view === 'rapport-ia') setRapportDossierId(lastView.dossierId);
+                      navigateToView(lastView.view as ViewType);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                  >
+                    Reprendre →
+                  </button>
+                </div>
+              )}
+
               {/* KPI row */}
               <div className="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#E8F5E9' }}>

@@ -541,6 +541,7 @@ function IndicatorRow({
   showDelta,
   delta,
   deltaPct,
+  isFirstEmpty,
 }: {
   dp: DataPoint;
   rawValue: string;
@@ -551,6 +552,7 @@ function IndicatorRow({
   showDelta?: boolean;
   delta?: number | null;
   deltaPct?: number | null;
+  isFirstEmpty?: boolean;
 }) {
   const isFilled     = statut === "filled";
   const isComputed   = dp.computed === true;
@@ -568,14 +570,20 @@ function IndicatorRow({
   return (
     <tr
       className={cn(
-        "border-b transition-colors group",
+        "border-b transition-colors group relative",
         isFilled && !isComputed && "bg-[#f8fdf9]",
-        !isFilled && "hover:bg-slate-50/60"
+        !isFilled && "hover:bg-slate-50/60",
+        isFirstEmpty && "ring-2 ring-emerald-400 ring-offset-1 animate-pulse"
       )}
       style={{ borderColor: "#f1f5f1" }}
     >
       {/* Statut */}
-      <td className="w-10 pl-4 py-3 text-center">
+      <td className="w-10 pl-4 py-3 text-center relative">
+        {isFirstEmpty && (
+          <div className="absolute -top-8 left-0 bg-emerald-700 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+            👋 Commencez ici — renseignez cette valeur
+          </div>
+        )}
         <StatutIcon statut={statut} />
       </td>
 
@@ -859,6 +867,14 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
 
   const dossierValues = getValues(dossierId, activePeriod);
   const stats = getStats(dossierId, "B", activePeriod);
+
+  // 🆕 Tooltip on first empty indicator (only when user just started)
+  const firstEmptyCode = useMemo(() => {
+    const allDps = MODULE_B.flatMap(s => s.datapoints).filter(dp => !dp.computed);
+    const filledCount = allDps.filter(dp => dossierValues.statuts[dp.code] === "filled").length;
+    if (filledCount >= 3) return null; // hide tooltip once user has filled 3+ indicators
+    return allDps.find(dp => dossierValues.statuts[dp.code] !== "filled")?.code ?? null;
+  }, [dossierValues]);
 
   // Stats par pilier (utilise la période active)
   const statsByPilier = useMemo(() => {
@@ -1473,6 +1489,7 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
                                     showDelta={showDelta}
                                     delta={comparison?.delta}
                                     deltaPct={comparison?.deltaPct}
+                                    isFirstEmpty={dp.code === firstEmptyCode}
                                     // 🆕 IA uniquement sur les champs qualitatifs/narratifs
                                     onAIAssist={
                                       isQualitative
