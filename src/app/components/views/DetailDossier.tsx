@@ -405,6 +405,31 @@ export function DetailDossier({ dossierId, onBack, onNavigate }: DetailDossierPr
         </div>
       </div>
 
+      {/* ── Progress bar ── */}
+      {(() => {
+        const dossierValues = getValues(dossierId, activePeriod);
+        const allDatapoints = MODULE_B.flatMap(s => s.datapoints).filter(dp => !dp.computed);
+        const filledCount = allDatapoints.filter(dp => dossierValues.statuts[dp.code] === 'filled').length;
+        const totalCount = allDatapoints.length;
+        const pct = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0;
+        return (
+          <div className="bg-white rounded-lg border p-3 mb-4">
+            <div className="flex items-center justify-between text-sm mb-1.5">
+              <span className="font-medium text-gray-700">Progression</span>
+              <span className="font-bold" style={{ color: pct >= 80 ? '#059669' : pct >= 40 ? '#d97706' : '#6b7280' }}>
+                {filledCount}/{totalCount} indicateurs — {pct}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, background: pct >= 80 ? '#059669' : pct >= 40 ? '#d97706' : '#94a3b8' }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-8">

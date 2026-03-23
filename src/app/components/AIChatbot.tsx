@@ -62,13 +62,48 @@ Règles :
 - Utilise la syntaxe Markdown légère (gras, listes) pour structurer tes réponses
 - Garde un ton professionnel mais accessible`;
 
-// ─── Suggestions de questions ─────────────────────────────────────────────────
-const SUGGESTIONS = [
+// ─── Suggestions de questions contextuelles ──────────────────────────────────
+const DEFAULT_SUGGESTIONS = [
   "Qu'est-ce que le VSME Module B ?",
   "Comment calculer mes émissions GES Scope 1 ?",
   "Quelles sont les preuves requises pour la CSRD ?",
   "Comment remplir l'indicateur B3.1 (énergie) ?",
 ];
+
+const CONTEXTUAL_SUGGESTIONS: Record<string, string[]> = {
+  'saisie-dossier': [
+    "Comment remplir l'indicateur B3.1 (énergie) ?",
+    "Quelle unité utiliser pour les émissions GES ?",
+    "Quels indicateurs sont obligatoires en VSME ?",
+    "Comment saisir une donnée qualitative ?",
+  ],
+  'import': [
+    "Quel format de fichier utiliser pour l'import ?",
+    "Comment préparer mon fichier Excel pour l'import ESG ?",
+    "Quelles colonnes sont obligatoires dans le template ?",
+    "Comment corriger une erreur après un import ?",
+  ],
+  'rapport-ia': [
+    "Comment interpréter le score ESG global ?",
+    "Quelles sont les sections du rapport CSRD ?",
+    "Comment améliorer mon rapport de durabilité ?",
+    "Quelles données manquent pour un rapport complet ?",
+  ],
+  'detail-dossier': [
+    "Quelles étapes pour compléter mon dossier ESG ?",
+    "Comment ajouter des justificatifs à mon dossier ?",
+    "Quel taux de complétion viser avant l'audit ?",
+    "Comment exporter mon dossier au format PDF ?",
+  ],
+};
+
+function getContextualSuggestions(): string[] {
+  const page = (window as any).__solvid_current_page as string | undefined;
+  if (page && CONTEXTUAL_SUGGESTIONS[page]) {
+    return CONTEXTUAL_SUGGESTIONS[page];
+  }
+  return DEFAULT_SUGGESTIONS;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function AIChatbot({ context }: AIChatbotProps) {
@@ -313,7 +348,7 @@ export function AIChatbot({ context }: AIChatbotProps) {
                   Suggestions
                 </p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
-                  {SUGGESTIONS.map((q, i) => (
+                  {getContextualSuggestions().map((q, i) => (
                     <button
                       key={i}
                       onClick={() => sendMessage(q)}

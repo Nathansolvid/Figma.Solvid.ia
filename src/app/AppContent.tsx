@@ -158,7 +158,10 @@ const WORKFLOW_BADGE: Record<string, { abbr: string; color: string }> = {
 export function AppContent() {
   const { currentUser, setCurrentUser, logout, loading, initError } = useUser();
 
-  const [currentView, setCurrentView] = useState<ViewType>("dashboard");
+  const [currentView, setCurrentView] = useState<ViewType>(() => {
+    (window as any).__solvid_current_page = "dashboard";
+    return "dashboard";
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentDossierId, setCurrentDossierId] = useState<string | null>(null);
   const [navigationCounter, setNavigationCounter] = useState(0);
@@ -249,6 +252,8 @@ export function AppContent() {
 
   const navigateToView = (view: ViewType) => {
     setCurrentView(view);
+    // Expose current page for contextual AI suggestions
+    (window as any).__solvid_current_page = view;
     if (view === "dashboard") {
       setNavigationCounter(prev => prev + 1);
     }
