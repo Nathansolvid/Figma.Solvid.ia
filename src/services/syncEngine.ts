@@ -46,6 +46,17 @@ function asUpdate<T extends SyncTableName>(
 
 export type SyncStatus = 'online' | 'offline' | 'syncing';
 
+export interface ConflictRecord {
+  table: string;
+  recordId: string;
+  localData: Record<string, unknown>;
+  remoteData: Record<string, unknown>;
+  localUpdatedAt: string;
+  remoteUpdatedAt: string;
+  resolvedAt?: string;
+  resolution?: 'local' | 'remote' | 'merged';
+}
+
 const MAX_RETRIES = 3;
 const HEALTH_CHECK_INTERVAL = 30_000; // 30s
 
@@ -58,7 +69,17 @@ class SyncEngine {
   private listeners = new Set<(status: SyncStatus) => void>();
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+  private _conflicts: ConflictRecord[] = [];
+
   private constructor() {}
+
+  /** Get unresolved conflicts */
+  get conflicts(): ConflictRecord[] { return this._conflicts; }
+
+  /** Clear resolved conflicts */
+  clearResolvedConflicts(): void {
+    this._conflicts = this._conflicts.filter(c => !c.resolvedAt);
+  }
 
   static getInstance(): SyncEngine {
     if (!SyncEngine.instance) {
@@ -151,7 +172,14 @@ class SyncEngine {
     }
 
     try {
-      await this.executeSyncOp({ table, operation, payload } as Omit<QueuedOperation, 'id' | 'timestamp' | 'retries'>);
+      // Conflict check for UPDATE/INSERT (not DELETE)
+      let finalPayload = payload;
+      if (operation !== 'DELETE') {
+        const resolved = await this.checkConflict(table, payload);
+        if (resolved === null) return; // Remote wins, skip write
+        finalPayload = resolved;
+      }
+      await this.executeSyncOp({ table, operation, payload: finalPayload } as Omit<QueuedOperation, 'id' | 'timestamp' | 'retries'>);
     } catch (err) {
       console.warn(`[SyncEngine] Cloud write failed for ${table}, queuing:`, err);
       syncQueue.enqueue({ table, operation, payload });
@@ -189,6 +217,62 @@ class SyncEngine {
 
     this.setStatus(await this.checkOnline() ? 'online' : 'offline');
     return { succeeded, failed };
+  }
+
+  // ─── Conflict Resolution (timestamp-based) ─────────
+
+  /**
+   * Check if a remote record is newer than our local version.
+   * If conflict detected, resolve using "latest timestamp wins" strategy.
+   * Returns the payload to sync (local if newer, null if remote wins).
+   */
+  private async checkConflict(
+    table: string,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown> | null> {
+    const id = payload.id as string;
+    const localUpdatedAt = (payload.updated_at || payload.updatedAt || payload.created_at || '') as string;
+
+    if (!id || !localUpdatedAt) return payload; // No timestamp, can't check — proceed
+
+    try {
+      // Fetch remote record
+      const { data: remote, error } = await supabase
+        .from(table)
+        .select('id, updated_at')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !remote) return payload; // No remote record, safe to write
+
+      const remoteUpdatedAt = (remote as Record<string, unknown>).updated_at as string;
+      if (!remoteUpdatedAt) return payload; // Remote has no timestamp
+
+      const localTime = new Date(localUpdatedAt).getTime();
+      const remoteTime = new Date(remoteUpdatedAt).getTime();
+
+      if (remoteTime > localTime) {
+        // Remote is newer — conflict! Log it and skip local write
+        console.warn(`[SyncEngine] Conflict on ${table}/${id}: remote is newer (${remoteUpdatedAt} > ${localUpdatedAt})`);
+        this._conflicts.push({
+          table,
+          recordId: id,
+          localData: payload,
+          remoteData: remote as Record<string, unknown>,
+          localUpdatedAt,
+          remoteUpdatedAt,
+          resolvedAt: new Date().toISOString(),
+          resolution: 'remote', // Remote wins automatically
+        });
+        return null; // Don't overwrite remote
+      }
+
+      // Local is newer or same — proceed with write
+      return payload;
+    } catch {
+      // Can't check, proceed with write (optimistic)
+      return payload;
+    }
   }
 
   // ─── Execute a single sync operation ────────────────
