@@ -858,11 +858,35 @@ export function AppContent() {
           {/* 3. Collecte */}
           {renderNavItem("import", "Collecte", <Upload className="h-4 w-4 flex-shrink-0" />, currentView === "import" || currentView === "erp-connector" || currentView === "saisie-dossier" || currentView === "bibliotheque-templates")}
 
-          {/* 4. Rapports */}
-          {renderNavItem("exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, currentView === "exports-livrables" || currentView === "rapport-ia")}
+          {(currentView === "import" || currentView === "erp-connector" || currentView === "bibliotheque-templates") && (
+            <div className="ml-6 space-y-0.5 mb-2">
+              {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("bibliotheque-templates", "Templates Excel", <Database className="h-3.5 w-3.5 flex-shrink-0" />)}
+            </div>
+          )}
 
-          {/* 5. Reglages */}
-          {renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, currentView === "parametres" || currentView === "guide-aide" || currentView === "glossaire" || currentView === "audit-trail")}
+          {/* 4. Rapports (with sub-items) */}
+          {renderNavItem("exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, currentView === "exports-livrables" || currentView === "rapport-ia" || currentView === "audit-center")}
+
+          {(currentView === "exports-livrables" || currentView === "rapport-ia" || currentView === "audit-center") && (
+            <div className="ml-6 space-y-0.5 mb-2">
+              {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("audit-center", "Contrôle qualité", <Shield className="h-3.5 w-3.5 flex-shrink-0" />)}
+            </div>
+          )}
+
+          {/* 5. Reglages (with sub-items) */}
+          {renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, currentView === "parametres" || currentView === "guide-aide" || currentView === "glossaire" || currentView === "historique" || currentView === "referentiels")}
+
+          {/* Sub-items under Réglages — always visible */}
+          {(currentView === "parametres" || currentView === "guide-aide" || currentView === "glossaire" || currentView === "historique" || currentView === "referentiels") && (
+            <div className="ml-6 space-y-0.5 mb-2">
+              {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("glossaire", "Glossaire ESG", <BookOpen className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("referentiels", "Référentiels", <Activity className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("historique", "Historique", <History className="h-3.5 w-3.5 flex-shrink-0" />)}
+            </div>
+          )}
 
         </nav>
 
