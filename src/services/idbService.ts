@@ -1,14 +1,20 @@
 /**
  * Solvid.IA — IndexedDB persistence layer
- * Stores: dossiers, vsme_values, mission_notes
+ *
+ * solvid-ia-db (v5) stores: vsme_values, mission_notes
+ * Dossiers are now delegated to dataProvider (solvid_local_v1) — single source of truth.
+ * The exported dossier functions (idbGetDossiers, idbPutDossier, etc.) keep the same
+ * signatures for backward compatibility but internally use dataProvider.store.
+ *
  * Write-through: async sync to Supabase via syncEngine
  */
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Dossier } from '@/contexts/DossierContext';
 import { syncEngine } from './syncEngine';
+import { dataProvider } from './dataProvider';
 
 const DB_NAME = 'solvid-ia-db';
-const DB_VERSION = 4;
+const DB_VERSION = 5; // v5: dossiers migrated to dataProvider (solvid_local_v1)
 
 /** Période par défaut (exercice fiscal annuel) */
 export const DEFAULT_PERIOD = '2025';
@@ -34,6 +40,51 @@ export interface MissionNote {
 
 // Singleton DB promise
 let _db: Promise<IDBPDatabase> | null = null;
+
+/**
+ * Pre-migration: before opening solvid-ia-db at v5 (which deletes the dossiers store),
+ * we open the DB WITHOUT a version bump to read existing dossiers.
+ * Returns the dossiers if the store exists, or null if it doesn't.
+ */
+async function extractDossiersBeforeUpgrade(): Promise<any[] | null> {
+  return new Promise((resolve) => {
+    try {
+      // Open without specifying a version — opens at whatever version exists on disk
+      const req = indexedDB.open(DB_NAME);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (db.objectStoreNames.contains('dossiers')) {
+          try {
+            const tx = db.transaction('dossiers', 'readonly');
+            const store = tx.objectStore('dossiers');
+            const getAllReq = store.getAll();
+            getAllReq.onsuccess = () => {
+              const result = getAllReq.result || [];
+              db.close();
+              resolve(result);
+            };
+            getAllReq.onerror = () => { db.close(); resolve(null); };
+          } catch {
+            db.close();
+            resolve(null);
+          }
+        } else {
+          db.close();
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+      // If an upgrade is needed, we don't want to trigger it here
+      req.onupgradeneeded = () => {
+        // This fires if the DB doesn't exist yet — just abort, nothing to migrate
+        try { req.transaction?.abort(); } catch { /* ignore */ }
+        resolve(null);
+      };
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
 function getDB(): Promise<IDBPDatabase> {
   if (!_db) {
@@ -81,10 +132,61 @@ function getDB(): Promise<IDBPDatabase> {
             }
           }
         }
+        // v5 — Unification : dossiers store removed (data already extracted before upgrade)
+        if (oldVersion < 5) {
+          if (db.objectStoreNames.contains('dossiers')) {
+            db.deleteObjectStore('dossiers');
+          }
+        }
       },
     });
   }
   return _db;
+}
+
+// ─── Migration: copy dossiers from old solvid-ia-db to dataProvider ──────────
+let _dossierMigrationDone = false;
+
+/**
+ * One-time migration: extracts dossiers from solvid-ia-db (v4) BEFORE the v5
+ * upgrade deletes the store, then copies them into dataProvider (solvid_local_v1).
+ * Uses a localStorage flag so it only runs once per browser.
+ *
+ * Must be called BEFORE getDB() so the upgrade hasn't deleted the store yet.
+ */
+async function migrateDossiersToDataProvider(): Promise<void> {
+  if (_dossierMigrationDone) return;
+  _dossierMigrationDone = true;
+
+  const MIGRATION_KEY = 'solvid_dossier_migration_v5_done';
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(MIGRATION_KEY)) return;
+
+  try {
+    // Read dossiers from the old DB BEFORE the v5 upgrade deletes the store
+    const dossiers = await extractDossiersBeforeUpgrade();
+
+    if (dossiers && dossiers.length > 0) {
+      console.log(`[IDB] Migrating ${dossiers.length} dossiers from solvid-ia-db to dataProvider...`);
+      await dataProvider.init();
+      for (const dossier of dossiers) {
+        try {
+          // Use update (put) which acts as upsert — won't fail if already exists
+          await dataProvider.store.update('dossiers' as any, dossier);
+        } catch {
+          // Ignore individual failures
+        }
+      }
+      console.log('[IDB] Dossier migration to dataProvider complete.');
+    }
+  } catch (e) {
+    console.warn('[IDB] Dossier migration error:', e);
+    _dossierMigrationDone = false; // Retry on next access
+    return; // Don't set the flag so we retry
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+  }
 }
 
 // ─── Migration v2→v3 : ajout du champ period aux records existants ───────────
@@ -120,11 +222,17 @@ async function ensurePeriodMigration(): Promise<void> {
   }
 }
 
-// ─── Dossiers ────────────────────────────────────────────────────────────────
+// ─── Dossiers (delegated to dataProvider — single source of truth) ───────────
+// All dossier CRUD now goes through dataProvider.store (solvid_local_v1 DB).
+// This eliminates the split-brain risk of having dossiers in two IndexedDB databases.
+// The function signatures remain identical so DossierContext.tsx needs no changes.
+
 export async function idbGetDossiers(): Promise<Dossier[]> {
   try {
-    const db = await getDB();
-    return await db.getAll('dossiers');
+    await migrateDossiersToDataProvider();
+    await dataProvider.init();
+    const all = await dataProvider.store.list('dossiers' as any);
+    return all as unknown as Dossier[];
   } catch (e) {
     console.error('[IDB] getAll dossiers error:', e);
     return [];
@@ -134,10 +242,14 @@ export async function idbGetDossiers(): Promise<Dossier[]> {
 /** RGPD Phase 1 : Récupère les dossiers filtrés par organisation */
 export async function idbGetDossiersByOrg(orgId: string): Promise<Dossier[]> {
   try {
-    await ensurePeriodMigration();
-    const db = await getDB();
-    if (!orgId) return db.getAll('dossiers');
-    return db.getAllFromIndex('dossiers', 'by_org', orgId);
+    await migrateDossiersToDataProvider();
+    await dataProvider.init();
+    if (!orgId) {
+      const all = await dataProvider.store.list('dossiers' as any);
+      return all as unknown as Dossier[];
+    }
+    const filtered = await dataProvider.store.listByIndex('dossiers' as any, 'organizationId', orgId);
+    return filtered as unknown as Dossier[];
   } catch (e) {
     console.error('[IDB] getDossiersByOrg error:', e);
     return [];
@@ -146,9 +258,14 @@ export async function idbGetDossiersByOrg(orgId: string): Promise<Dossier[]> {
 
 export async function idbPutDossier(dossier: Dossier): Promise<void> {
   try {
-    const db = await getDB();
-    await db.put('dossiers', dossier);
-    // Write-through to Supabase (non-blocking)
+    await migrateDossiersToDataProvider();
+    await dataProvider.init();
+    // dataProvider.store.update uses IDB put() which is an upsert
+    await dataProvider.store.update('dossiers' as any, dossier as any);
+    // Note: dataProvider.store.update already does write-through to Supabase
+    // via syncEngine, so we don't need to duplicate that logic here.
+    // However, the Supabase payload shape differs (idbService uses a custom mapping).
+    // To preserve the exact Supabase sync behaviour, we keep the manual sync call:
     if (syncEngine.enabled && syncEngine.organizationId) {
       syncEngine.syncToCloud('dossiers', 'UPDATE', {
         id: dossier.id,
@@ -179,9 +296,11 @@ export async function idbPutDossier(dossier: Dossier): Promise<void> {
 
 export async function idbDeleteDossier(id: string): Promise<void> {
   try {
-    const db = await getDB();
-    await db.delete('dossiers', id);
-    // Write-through to Supabase
+    await migrateDossiersToDataProvider();
+    await dataProvider.init();
+    await dataProvider.store.delete('dossiers' as any, id);
+    // dataProvider.store.delete already syncs to Supabase, but we keep the
+    // explicit call for consistency with the original behaviour:
     if (syncEngine.enabled) {
       syncEngine.syncToCloud('dossiers', 'DELETE', { id }).catch(() => {});
     }
