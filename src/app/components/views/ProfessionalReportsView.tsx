@@ -1,3 +1,9 @@
+// ============================================================================
+// PROFESSIONAL REPORTS VIEW — Rapports PDF professionnels ESG
+// ============================================================================
+// Charge les dossiers depuis solvid-ia-db (idbService) et les données VSME
+// pour générer des rapports Standard, Exécutif ou Audit via jsPDF natif.
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -9,36 +15,70 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import {
   FileText,
   Download,
-  FileCheck,
   Shield,
   TrendingUp,
   CheckCircle,
-  Package,
+  FolderOpen,
   Calendar,
   User,
   Settings,
   Sparkles,
 } from 'lucide-react';
-import { dataProvider } from '@/services/dataProvider';
-import { generateProfessionalReport, generateAuditPreparationReport } from '@/utils/professionalReports';
+import { dataProvider, type Organization } from '@/services/dataProvider';
+import { idbGetDossiers, idbGetValuesByDossier, type VSMEValue } from '@/services/idbService';
+import { MODULE_B } from '@/data/vsme-data';
+import type { Dossier } from '@/contexts/DossierContext';
+import {
+  generateStandardReport,
+  generateExecutiveReport,
+  generateAuditReport,
+} from '@/utils/professionalReports';
+import type { ReportPackData, ReportOptions, ReportChecklistItem, ReportKPIRequirement, BrandConfig, VSMESectionData } from '@/utils/reportTypes';
+import type { ESGCategory } from '@/utils/reportTypes';
+import { sanitizeFileName } from '@/utils/reportHelpers';
+import { useUser } from '@/contexts/UserContext';
 import { toast } from 'sonner';
 
-interface Pack {
-  id: string;
-  name: string;
-  templateCode: string;
-  templateName: string;
-  completionScore: number;
-  owner: string;
-  createdAt: string;
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Build metadata map from MODULE_B referential */
+function buildVSMEMetaMap(): Record<string, { name: string; pillar: ESGCategory; unit?: string; obligatoire: boolean; section: string }> {
+  const meta: Record<string, { name: string; pillar: ESGCategory; unit?: string; obligatoire: boolean; section: string }> = {};
+  for (const section of MODULE_B) {
+    for (const dp of section.datapoints) {
+      const pillar: ESGCategory = dp.pilier === 'Général' ? 'G' : dp.pilier as ESGCategory;
+      meta[dp.code] = {
+        name: dp.intitule,
+        pillar,
+        unit: dp.unite,
+        obligatoire: dp.obligatoire,
+        section: section.titre,
+      };
+    }
+  }
+  return meta;
 }
 
-export function ProfessionalReportsView() {
-  const [packs, setPacks] = useState<Pack[]>([]);
-  const [selectedPackId, setSelectedPackId] = useState<string>('');
+/** Compute completion score from VSME values */
+function computeCompletionScore(values: VSMEValue[], totalDatapoints: number): number {
+  if (totalDatapoints === 0) return 0;
+  const filled = values.filter(v => v.rawValue && v.rawValue.trim() !== '' && v.statut === 'filled').length;
+  return Math.round((filled / totalDatapoints) * 100);
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
+interface ProfessionalReportsViewProps {
+  dossierId?: string; // passed from ExportsLivrables
+}
+
+export function ProfessionalReportsView({ dossierId }: ProfessionalReportsViewProps) {
+  const user = useUser();
+  const [dossiers, setDossiers] = useState<Dossier[]>([]);
+  const [selectedDossierId, setSelectedDossierId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  
+
   // Report options
   const [reportType, setReportType] = useState<'standard' | 'audit' | 'executive'>('standard');
   const [organizationName, setOrganizationName] = useState('Solvid.IA');
@@ -46,89 +86,192 @@ export function ProfessionalReportsView() {
   const [includeEvidence, setIncludeEvidence] = useState(true);
   const [includeAuditTrail, setIncludeAuditTrail] = useState(false);
 
+  // Brand config loaded from Organization
+  const [brandConfig, setBrandConfig] = useState<BrandConfig | undefined>(undefined);
+
+  // VSME metadata (built once)
+  const [vsmeMeta] = useState(() => buildVSMEMetaMap());
+  const totalDatapoints = MODULE_B.reduce((n, s) => n + s.datapoints.length, 0);
+
   useEffect(() => {
-    loadPacks();
+    loadDossiers();
+    loadBranding();
   }, []);
 
-  async function loadPacks() {
+  // If dossierId prop is provided, auto-select it
+  useEffect(() => {
+    if (dossierId && dossiers.length > 0) {
+      setSelectedDossierId(dossierId);
+    }
+  }, [dossierId, dossiers]);
+
+  async function loadDossiers() {
     setLoading(true);
     try {
-      const packInstances = await dataProvider.store.list('pack_instances');
-      setPacks(packInstances);
-      
-      if (packInstances.length > 0 && !selectedPackId) {
-        setSelectedPackId(packInstances[0].id);
+      const allDossiers = await idbGetDossiers();
+      setDossiers(allDossiers);
+
+      // Auto-select: prefer prop dossierId, else first dossier
+      if (dossierId && allDossiers.some(d => d.id === dossierId)) {
+        setSelectedDossierId(dossierId);
+      } else if (allDossiers.length > 0 && !selectedDossierId) {
+        setSelectedDossierId(allDossiers[0].id);
       }
     } catch (error) {
-      console.error('Failed to load packs:', error);
-      toast.error('Erreur lors du chargement des packs');
+      console.error('Failed to load dossiers:', error);
+      toast.error('Erreur lors du chargement des dossiers');
     } finally {
       setLoading(false);
     }
   }
 
+  async function loadBranding() {
+    try {
+      const orgId = user.currentUser?.organizationId;
+      if (!orgId) return;
+      const org = await dataProvider.store.read<Organization>('organizations', orgId);
+      if (org) {
+        const orgName = org.name || user.currentUser?.organizationName || 'Solvid.IA';
+        setOrganizationName(orgName);
+        setBrandConfig({
+          organizationName: orgName,
+          logoBase64: org.brandLogoBase64 || null,
+          primaryColor: org.brandPrimaryColor || '#059669',
+          secondaryColor: org.brandSecondaryColor || '#0A3B2E',
+        });
+      }
+    } catch {
+      // Brand fields are optional — use defaults
+    }
+  }
+
   async function handleGenerateReport() {
-    if (!selectedPackId) {
-      toast.error('Veuillez sélectionner un pack');
+    if (!selectedDossierId) {
+      toast.error('Veuillez sélectionner un dossier');
       return;
     }
 
     setGenerating(true);
     try {
-      // Load pack data
-      const pack = await dataProvider.store.read('pack_instances', selectedPackId); // 🔧 Fixed: use read instead of get
-      
-      if (!pack) {
-        throw new Error('Pack not found');
-      }
+      const dossier = dossiers.find(d => d.id === selectedDossierId);
+      if (!dossier) throw new Error('Dossier introuvable');
 
-      // Load checklist items
-      const checklistItems = await dataProvider.store.listByIndex(
-        'checklist_items',
-        'packId',
-        selectedPackId
-      );
+      // Load VSME values for selected dossier
+      const vsmeValues = await idbGetValuesByDossier(selectedDossierId);
+      const filledValues = vsmeValues.filter(v => v.rawValue && v.rawValue.trim() !== '' && v.statut === 'filled');
+      const completionScore = computeCompletionScore(vsmeValues, totalDatapoints);
 
-      // Load KPI requirements (if available)
-      let kpiRequirements: any[] = [];
-      try {
-        kpiRequirements = await dataProvider.store.listByIndex(
-          'kpi_requirements',
-          'packId',
-          selectedPackId
-        );
-      } catch (error) {
-        console.warn('No KPI requirements found for pack:', selectedPackId);
-      }
-
-      // Load evidence
-      const evidence = await dataProvider.store.listByIndex(
-        'evidence',
-        'packId',
-        selectedPackId
-      );
-
-      // Prepare pack data with all details
-      const fullPack = {
-        ...pack,
-        checklistItems,
-        kpiRequirements,
-        evidences: evidence,
-        owner: pack.ownerId || 'N/A',
+      // Build ReportPackData from dossier + VSME values
+      const reportData: ReportPackData = {
+        pack: {
+          id: dossier.id,
+          name: dossier.name,
+          templateCode: dossier.referentielId || 'VSME',
+          templateName: dossier.referentielId === 'bilan-carbone' ? 'Bilan Carbone®' : 'VSME PME',
+          status: dossier.status === 'completed' ? 'READY_FOR_REVIEW' : 'IN_PROGRESS',
+          completionScore,
+          owner: dossier.leadConsultant || 'N/A',
+          createdAt: dossier.createdAt,
+          updatedAt: new Date().toISOString(),
+          fiscalYear: dossier.fiscalYear || new Date().getFullYear().toString(),
+          clientOrg: dossier.clientOrg || '',
+        },
+        // Map ALL MODULE_B datapoints as checklist items (to show what's filled vs missing)
+        checklistItems: MODULE_B.flatMap(section =>
+          section.datapoints.map((dp): ReportChecklistItem => {
+            const val = vsmeValues.find(v => v.code === dp.code);
+            const isFilled = val && val.rawValue && val.rawValue.trim() !== '' && val.statut === 'filled';
+            const pillar: ESGCategory = dp.pilier === 'Général' ? 'G' : dp.pilier as ESGCategory;
+            return {
+              id: dp.code,
+              code: dp.code,
+              label: dp.intitule,
+              category: pillar,
+              requirementLevel: dp.obligatoire ? 'MANDATORY' : 'RECOMMENDED',
+              status: isFilled ? 'PROVIDED' : 'MISSING',
+              description: `Section: ${section.titre}`,
+              comment: isFilled ? `Valeur: ${val!.rawValue}${dp.unite ? ' ' + dp.unite : ''}` : undefined,
+            };
+          })
+        ),
+        // Map filled VSME values as KPI requirements
+        kpiRequirements: filledValues.map((v): ReportKPIRequirement => {
+          const m = vsmeMeta[v.code];
+          return {
+            id: v.id,
+            code: v.code,
+            name: m?.name ?? v.code,
+            unit: m?.unit ?? '',
+            category: m?.pillar ?? 'G',
+            status: 'provided',
+            value: isNaN(parseFloat(v.rawValue)) ? undefined : parseFloat(v.rawValue),
+            period: v.period || '2025',
+            hasEvidence: false,
+            evidenceCount: 0,
+          };
+        }),
+        evidences: [], // No evidence in solvid-ia-db (separate future feature)
+        // Structured VSME section data for detailed narrative reports
+        vsmeSections: MODULE_B.map((section): VSMESectionData => {
+          const pillar: ESGCategory = section.pilier === 'Général' ? 'G' : section.pilier as ESGCategory;
+          return {
+            sectionId: section.id,
+            sectionTitle: section.titre,
+            pillar,
+            datapoints: section.datapoints.map(dp => {
+              const val = vsmeValues.find(v => v.code === dp.code);
+              const isFilled = val && val.rawValue && val.rawValue.trim() !== '' && val.statut === 'filled';
+              return {
+                code: dp.code,
+                label: dp.intitule,
+                type: dp.type,
+                unit: dp.unite,
+                obligatoire: dp.obligatoire,
+                esrsEquivalent: dp.esrs_equivalent,
+                value: isFilled ? val!.rawValue : undefined,
+                status: isFilled ? 'filled' as const : 'missing' as const,
+              };
+            }),
+          };
+        }),
       };
 
-      // Generate report based on type
+      // Build BrandConfig
+      const currentBrandConfig: BrandConfig = brandConfig || {
+        organizationName,
+        logoBase64: null,
+        primaryColor: '#059669',
+        secondaryColor: '#0A3B2E',
+      };
+      currentBrandConfig.organizationName = organizationName;
+
+      const options: ReportOptions = {
+        reportType,
+        includeExecutiveSummary,
+        includeEvidence,
+        includeAuditTrail,
+        brandConfig: currentBrandConfig,
+      };
+
+      // Generate the report
+      let blob: Blob;
       if (reportType === 'audit') {
-        await generateAuditPreparationReport(fullPack, organizationName);
+        blob = await generateAuditReport(reportData, options);
+      } else if (reportType === 'executive') {
+        blob = await generateExecutiveReport(reportData, options);
       } else {
-        await generateProfessionalReport(fullPack, {
-          organizationName,
-          includeExecutiveSummary,
-          includeEvidence,
-          includeAuditTrail,
-          reportType,
-        });
+        blob = await generateStandardReport(reportData, options);
       }
+
+      // Download the PDF
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sanitizeFileName(dossier.name)}_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast.success('Rapport généré avec succès', {
         description: 'Le fichier PDF a été téléchargé',
@@ -143,7 +286,7 @@ export function ProfessionalReportsView() {
     }
   }
 
-  const selectedPack = packs.find(p => p.id === selectedPackId);
+  const selectedDossier = dossiers.find(d => d.id === selectedDossierId);
 
   const reportTemplates = [
     {
@@ -190,13 +333,13 @@ export function ProfessionalReportsView() {
         {reportTemplates.map(template => {
           const Icon = template.icon;
           const isSelected = reportType === template.type;
-          
+
           return (
             <Card
               key={template.type}
               className={`cursor-pointer transition-all ${
-                isSelected 
-                  ? 'ring-2 ring-primary shadow-lg' 
+                isSelected
+                  ? 'ring-2 ring-primary shadow-lg'
                   : 'hover:shadow-md'
               }`}
               onClick={() => setReportType(template.type)}
@@ -239,50 +382,55 @@ export function ProfessionalReportsView() {
             Configuration du Rapport
           </CardTitle>
           <CardDescription>
-            Sélectionnez le pack et personnalisez les options du rapport
+            Sélectionnez le dossier et personnalisez les options du rapport
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Pack selection */}
+          {/* Dossier selection */}
           <div className="space-y-2">
-            <Label htmlFor="pack-select">Pack à exporter</Label>
-            <Select value={selectedPackId} onValueChange={setSelectedPackId}>
-              <SelectTrigger id="pack-select">
-                <SelectValue placeholder="Sélectionner un pack" />
+            <Label htmlFor="dossier-select">Dossier à exporter</Label>
+            <Select value={selectedDossierId} onValueChange={setSelectedDossierId}>
+              <SelectTrigger id="dossier-select">
+                <SelectValue placeholder={loading ? "Chargement..." : "Sélectionner un dossier"} />
               </SelectTrigger>
               <SelectContent>
-                {packs.map(pack => (
-                  <SelectItem key={pack.id} value={pack.id}>
+                {dossiers.map(dossier => (
+                  <SelectItem key={dossier.id} value={dossier.id}>
                     <div className="flex items-center gap-2">
-                      <Package className="w-4 h-4" />
-                      <span>{pack.name}</span>
+                      <FolderOpen className="w-4 h-4" />
+                      <span>{dossier.name}</span>
                       <Badge variant="secondary" className="ml-2">
-                        {pack.completionScore}%
+                        {dossier.status === 'completed' ? '✓' : dossier.status}
                       </Badge>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            
-            {selectedPack && (
+
+            {selectedDossier && (
               <div className="mt-3 p-3 bg-muted rounded-md text-sm space-y-1">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Responsable:</span>
-                  <span className="font-medium">{selectedPack.owner}</span>
+                  <span className="text-muted-foreground">Consultant:</span>
+                  <span className="font-medium">{selectedDossier.leadConsultant || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Créé le:</span>
-                  <span className="font-medium">
-                    {new Date(selectedPack.createdAt).toLocaleDateString('fr-FR')}
-                  </span>
+                  <span className="text-muted-foreground">Exercice:</span>
+                  <span className="font-medium">{selectedDossier.fiscalYear}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className="font-medium">{selectedDossier.clientOrg}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Template:</span>
-                  <span className="font-medium">{selectedPack.templateName}</span>
+                  <span className="text-muted-foreground">Parcours:</span>
+                  <span className="font-medium">
+                    {selectedDossier.pathwayType === 'CSRD_Mandatory' ? 'CSRD Obligatoire' : 'ESG Volontaire'}
+                  </span>
                 </div>
               </div>
             )}
@@ -303,7 +451,7 @@ export function ProfessionalReportsView() {
           {reportType !== 'audit' && (
             <div className="space-y-3">
               <Label>Options du rapport</Label>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -357,7 +505,7 @@ export function ProfessionalReportsView() {
           <div className="pt-4">
             <Button
               onClick={handleGenerateReport}
-              disabled={!selectedPackId || generating || loading}
+              disabled={!selectedDossierId || generating || loading}
               className="w-full"
               size="lg"
             >
@@ -384,11 +532,11 @@ export function ProfessionalReportsView() {
             <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="font-medium text-blue-900">
-                Rapports Audit-Ready
+                Rapports prêts pour vérification
               </p>
               <p className="text-sm text-blue-700">
-                Nos rapports sont formatés selon les standards d'audit et incluent toutes les 
-                informations nécessaires pour la traçabilité et la conformité. Parfait pour 
+                Nos rapports sont formatés selon les standards d'audit et incluent toutes les
+                informations nécessaires pour la traçabilité et la conformité. Parfait pour
                 les auditeurs externes, investisseurs, et revues de conformité ESG.
               </p>
             </div>

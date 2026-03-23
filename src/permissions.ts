@@ -184,13 +184,12 @@ export function can(
       
     // ==================== IA ====================
     case Action.USE_AI_ASSISTANT:
-      // IA activée uniquement si:
-      // 1. Feature flag activé
-      // 2. Posture = Conseil
-      // 3. Rôle = Consultant
+      // IA activée si feature flag + rôle autorisé
+      // ADMIN a toujours accès, CONSULTANT en mode Conseil
       return context?.featureFlags?.aiAssistant === true &&
-             context?.posture === 'Conseil' &&
-             role === Role.CONSULTANT;
+             (role === Role.ADMIN ||
+              role === Role.CONSULTANT ||
+              (role === Role.CLIENT_OWNER && context?.posture === 'Conseil'));
       
     default:
       // Par défaut, refuser

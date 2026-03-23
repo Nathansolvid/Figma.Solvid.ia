@@ -1,14 +1,19 @@
 /**
  * HOOK: useEvidence
  * Gestion des preuves et documents (upload, liste, liens avec indicateurs)
+ *
+ * 🆕 Phase 10 : support workflowId pour indépendance des preuves par workflow
+ *   - evidence          → preuves de CE workflow (ou legacy sans workflowId)
+ *   - crossWorkflowEvidence → preuves d'AUTRES workflows (pour cross-référence)
  */
 
 import { useState, useEffect } from 'react';
 import { dataProvider, type Evidence } from '@/services/dataProvider';
 import { v4 as uuidv4 } from 'uuid';
 
-export function useEvidence(packId?: string, indicatorId?: string) {
+export function useEvidence(packId?: string, indicatorId?: string, workflowId?: string) {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [crossWorkflowEvidence, setCrossWorkflowEvidence] = useState<Evidence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,9 +22,9 @@ export function useEvidence(packId?: string, indicatorId?: string) {
     try {
       setLoading(true);
       setError(null);
-      
+
       let allEvidence: Evidence[];
-      
+
       if (indicatorId) {
         // Charger les preuves d'un indicateur spécifique
         allEvidence = await dataProvider.store.listByIndex('evidence', 'indicatorId', indicatorId);
@@ -30,8 +35,23 @@ export function useEvidence(packId?: string, indicatorId?: string) {
         // Charger toutes les preuves
         allEvidence = await dataProvider.store.list('evidence');
       }
-      
-      setEvidence(allEvidence);
+
+      // 🆕 Si workflowId fourni, séparer preuves directes et cross-workflow
+      if (workflowId) {
+        // Ce workflow + legacy (records sans workflowId = visibles partout)
+        const thisWorkflow = allEvidence.filter(
+          e => e.workflowId === workflowId || !e.workflowId
+        );
+        // Autres workflows (pour cross-référence)
+        const otherWorkflows = allEvidence.filter(
+          e => e.workflowId && e.workflowId !== workflowId
+        );
+        setEvidence(thisWorkflow);
+        setCrossWorkflowEvidence(otherWorkflows);
+      } else {
+        setEvidence(allEvidence);
+        setCrossWorkflowEvidence([]);
+      }
     } catch (err) {
       console.error('Error loading evidence:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des preuves');
@@ -43,6 +63,7 @@ export function useEvidence(packId?: string, indicatorId?: string) {
   // Upload d'une preuve
   const uploadEvidence = async (file: File, metadata: {
     packId: string;
+    workflowId?: string; // 🆕
     indicatorId?: string;
     linkedIndicators?: string[];
     period?: string;
@@ -51,13 +72,14 @@ export function useEvidence(packId?: string, indicatorId?: string) {
     try {
       // Convertir le fichier en base64
       const base64 = await fileToBase64(file);
-      
+
       // Calculer un hash simple (pour déduplication)
       const hash = await simpleHash(base64);
-      
+
       const newEvidence: Evidence = {
         id: uuidv4(),
         packId: metadata.packId,
+        workflowId: metadata.workflowId, // 🆕 scope au workflow
         indicatorId: metadata.indicatorId,
         fileName: file.name,
         fileType: file.type,
@@ -69,14 +91,56 @@ export function useEvidence(packId?: string, indicatorId?: string) {
         uploadedBy: 'current-user', // TODO: Récupérer depuis le contexte auth
         uploadedAt: new Date().toISOString(),
         linkedIndicators: metadata.linkedIndicators || [],
+        completionType: 'file', // 🆕
+        updatedAt: new Date().toISOString(), // 🆕
       };
 
       await dataProvider.store.create('evidence', newEvidence);
       await loadEvidence(); // Recharger
-      
+
       return newEvidence;
     } catch (err) {
       console.error('Error uploading evidence:', err);
+      throw err;
+    }
+  };
+
+  // 🆕 Créer une preuve par saisie de valeur (pas de fichier)
+  const createValueEvidence = async (metadata: {
+    packId: string;
+    workflowId?: string;
+    indicatorId: string;
+    linkedIndicators: string[];
+    category?: 'E' | 'S' | 'G';
+    period?: string;
+    justification?: string;
+  }) => {
+    try {
+      const newEvidence: Evidence = {
+        id: uuidv4(),
+        packId: metadata.packId,
+        workflowId: metadata.workflowId,
+        indicatorId: metadata.indicatorId,
+        fileName: `valeur-${metadata.indicatorId}`,
+        fileType: 'value_entry',
+        fileSize: 0,
+        fileHash: `value-${metadata.indicatorId}-${Date.now()}`,
+        period: metadata.period,
+        category: metadata.category,
+        uploadedBy: 'current-user',
+        uploadedAt: new Date().toISOString(),
+        linkedIndicators: metadata.linkedIndicators,
+        completionType: 'value',
+        justification: metadata.justification,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await dataProvider.store.create('evidence', newEvidence);
+      await loadEvidence();
+
+      return newEvidence;
+    } catch (err) {
+      console.error('Error creating value evidence:', err);
       throw err;
     }
   };
@@ -103,11 +167,12 @@ export function useEvidence(packId?: string, indicatorId?: string) {
       const updated: Evidence = {
         ...existing,
         linkedIndicators: [...new Set([...existing.linkedIndicators, indicatorCode])],
+        updatedAt: new Date().toISOString(),
       };
 
       await dataProvider.store.update('evidence', updated);
       await loadEvidence(); // Recharger
-      
+
       return updated;
     } catch (err) {
       console.error('Error linking evidence to indicator:', err);
@@ -147,13 +212,15 @@ export function useEvidence(packId?: string, indicatorId?: string) {
   // Charger au montage
   useEffect(() => {
     loadEvidence();
-  }, [packId, indicatorId]);
+  }, [packId, indicatorId, workflowId]);
 
   return {
     evidence,
+    crossWorkflowEvidence, // 🆕
     loading,
     error,
     uploadEvidence,
+    createValueEvidence, // 🆕
     deleteEvidence,
     linkToIndicator,
     downloadEvidence,

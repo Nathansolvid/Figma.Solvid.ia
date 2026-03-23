@@ -69,7 +69,6 @@ class CollaborationService {
       timestamp: new Date().toISOString(),
     });
 
-    console.log('👥 Collaboration initialized:', { userId, userName });
   }
 
   /**
@@ -81,7 +80,6 @@ class CollaborationService {
     this.channel.onmessage = (event) => {
       const collabEvent = event.data as CollaborationEvent;
       
-      console.log('📡 Received collaboration event:', collabEvent);
 
       // Update active users
       if (collabEvent.type === 'user_joined') {
@@ -122,11 +120,9 @@ class CollaborationService {
    */
   broadcast(event: CollaborationEvent) {
     if (!this.channel) {
-      console.log('ℹ️ BroadcastChannel not available (normal in some environments)');
       return;
     }
 
-    console.log('📤 Broadcasting event:', event);
     this.channel.postMessage(event);
   }
 
@@ -250,7 +246,6 @@ class CollaborationService {
 
     this.listeners.clear();
     this.activeUsers.clear();
-    console.log('👋 Collaboration disconnected');
   }
 }
 

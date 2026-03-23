@@ -26,25 +26,15 @@ export interface Indicator {
 export function useAllIndicators() {
   const { data: packsList = [], isLoading: packsLoading, error: packsError } = usePacks();
 
-  console.log('🔍 useAllIndicators - Hook called', {
-    packsCount: packsList.length,
-    packsLoading,
-    packsError,
-    enabled: !packsLoading && packsList.length > 0,
-  });
-
   return useQuery({
     queryKey: ['all-indicators', packsList.map(p => p.id).sort().join(',')],
     queryFn: async () => {
-      console.log('📊 useAllIndicators - Loading full packs data...');
-      console.log(`📦 Found ${packsList.length} packs to load`);
       
       const allIndicators: Indicator[] = [];
       
       // Charger chaque pack avec ses détails complets (folders + indicators)
       for (const pack of packsList) {
         try {
-          console.log(`📦 Loading full data for pack: ${pack.id}`);
           const fullPack = await apiClient.getPackFullDirect(pack.id);
           
           if (fullPack?.pack?.folders && Array.isArray(fullPack.pack.folders)) {
@@ -64,14 +54,6 @@ export function useAllIndicators() {
         }
       }
       
-      console.log(`✅ useAllIndicators - Found ${allIndicators.length} total indicators`);
-      console.log('📊 Indicators by status:', {
-        missing: allIndicators.filter(i => i.status === 'missing').length,
-        partial: allIndicators.filter(i => i.status === 'partial').length,
-        validated: allIndicators.filter(i => i.status === 'validated').length,
-        rejected: allIndicators.filter(i => i.status === 'rejected').length,
-      });
-      
       return allIndicators;
     },
     enabled: !packsLoading && packsList.length > 0,
@@ -87,7 +69,6 @@ export function useIndicatorsStatistics() {
   return useQuery({
     queryKey: ['indicators-statistics', indicators.length],
     queryFn: async () => {
-      console.log('📊 useIndicatorsStatistics - Calculating statistics...');
       
       const stats = {
         total: indicators.length,
@@ -105,7 +86,6 @@ export function useIndicatorsStatistics() {
           : 0,
       };
       
-      console.log('✅ useIndicatorsStatistics - Statistics calculated:', stats);
       
       return stats;
     },

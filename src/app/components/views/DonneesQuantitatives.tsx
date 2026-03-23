@@ -20,13 +20,11 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { TransparencyModal } from "@/app/components/TransparencyModal";
-import { indicators as rawIndicators, type Indicator as RawIndicator } from "@/data/transparencyData";
-import { useAllIndicators } from "@/hooks/useAllIndicators"; // 🆕 Correct import
+import { useAllIndicators } from "@/hooks/useAllIndicators";
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { packKeys } from '@/hooks/usePack';
 
-// Type étendu pour la vue avec valeurs mockées
+// Type pour la vue indicateur
 interface ViewIndicator {
   id: string;
   code: string;
@@ -38,67 +36,6 @@ interface ViewIndicator {
   period: string;
   source: string;
   status: "validated" | "partial" | "missing";
-}
-
-// Convertir les indicateurs de transparencyData en indicateurs de vue avec valeurs mockées
-function enrichIndicatorForView(indicator: RawIndicator, index: number): ViewIndicator {
-  // Générer des valeurs mockées réalistes
-  const mockValues: Record<string, number> = {
-    'ind-e1-co2-total': 14540,
-    'ind-e1-co2-scope1': 1240,
-    'ind-e1-co2-scope2': 830,
-    'ind-e1-co2-scope3': 4560,
-    'ind-e1-energy-total': 3570,
-    'ind-e2-pollution-water': 2400,
-    'ind-e3-water-consumption': 12450,
-    'ind-e4-biodiversity-impact': 8.5,
-    'ind-e5-waste-total': 450,
-    'ind-s1-workforce-total': 187,
-    'ind-s1-workforce-women': 78,
-    'ind-s1-turnover': 12.5,
-    'ind-s2-supply-chain-audits': 18,
-    'ind-s3-community-investment': 125000,
-    'ind-s4-consumer-satisfaction': 8.2,
-    'ind-g1-board-women': 42,
-    'ind-g1-board-meetings': 12,
-    'ind-g2-business-ethics-trainings': 95,
-    'ind-g3-data-breaches': 0,
-  };
-
-  const sources: string[] = [
-    "Factures énergie 2025",
-    "Factures électricité 2025",
-    "Estimations comptabilité",
-    "BDES 2025",
-    "RH",
-    "Registre légal",
-    "Factures",
-    "Prestataire déchets",
-  ];
-
-  const statuses: Array<"validated" | "partial" | "missing"> = [
-    "validated",
-    "validated",
-    "partial",
-    "validated",
-    "validated",
-    "partial",
-    "missing",
-    "validated",
-  ];
-
-  return {
-    id: indicator.id,
-    code: indicator.code,
-    name: indicator.name,
-    description: indicator.description,
-    category: indicator.pillar as "E" | "S" | "G",
-    value: mockValues[indicator.id] || Math.round(Math.random() * 1000 + 100),
-    unit: indicator.unit,
-    period: "2025",
-    source: sources[index % sources.length],
-    status: statuses[index % statuses.length],
-  };
 }
 
 interface DonneesQuantitativesProps {
@@ -268,7 +205,7 @@ export function DonneesQuantitatives({ posture, parcours }: DonneesQuantitatives
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Complétude</p>
+                <p className="text-sm font-medium text-muted-foreground">Progression</p>
                 <p className="text-2xl font-bold">{completionRate}%</p>
               </div>
               <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
@@ -404,31 +341,28 @@ function IndicatorRow({ indicator, onViewDetails }: IndicatorRowProps) {
 
   const status = statusConfig[indicator.status] || statusConfig.missing;
 
-  // 🆕 Fonction pour valider un indicateur
-  const handleValidate = async (indicator: Indicator) => {
-    console.log('✅ Validating indicator:', indicator.id);
+  // Fonction pour valider un indicateur
+  const handleValidate = async () => {
     setIsValidating(true);
-    
+
     try {
-      // Import KPI service (LOCAL)
       const { kpiService } = await import('@/services/kpiService');
-      
-      // Mettre à jour le statut de l'indicateur (LOCAL)
+
       await kpiService.validateKPI(
         indicator.id,
-        'current-user-id', // TODO: Get from context
+        'current-user-id',
         'Current User',
         'CLIENT_OWNER'
       );
-      
+
       toast.success('Indicateur validé', {
         description: `${indicator.name} a été validé avec succès`,
       });
-      
-      // Rafraîchir la liste
-      fetchIndicators();
+
+      // Invalidate queries to refresh list
+      queryClient.invalidateQueries({ queryKey: ['all-indicators'] });
     } catch (error: any) {
-      console.error('❌ Validation error:', error);
+      console.error('Validation error:', error);
       toast.error('Erreur lors de la validation', {
         description: error.message,
       });

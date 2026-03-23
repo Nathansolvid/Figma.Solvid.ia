@@ -46,7 +46,6 @@ export interface NavigationTarget {
  * @returns NavigationTarget ou null si pas de cible
  */
 export function resolveNotificationTarget(notification: Notification): NavigationTarget | null {
-  console.log('🧭 Resolving navigation for notification:', notification);
 
   // Règle 1 : Pack ID présent -> Pack View
   if (notification.packId) {

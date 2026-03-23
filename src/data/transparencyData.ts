@@ -459,7 +459,7 @@ export const indicators: Indicator[] = [
   
   {
     id: 'ind-datapoints-completion',
-    name: 'Taux de complétude',
+    name: 'Taux de progression',
     code: 'DATAPOINTS_COMPLETION_RATE',
     description: 'Pourcentage d\'indicateurs validés / total',
     norm_reference: 'N/A - Métrique interne',
@@ -480,7 +480,7 @@ export const indicators: Indicator[] = [
   // INDICATEURS DONNÉES ESG
   {
     id: 'ind-esg-env-completion',
-    name: 'Complétude Environnement',
+    name: 'Progression Environnement',
     code: 'ESG_ENV_COMPLETION',
     description: 'Indicateurs environnementaux complétés / total',
     norm_reference: 'N/A - Métrique interne',
@@ -500,7 +500,7 @@ export const indicators: Indicator[] = [
   
   {
     id: 'ind-esg-social-completion',
-    name: 'Complétude Social',
+    name: 'Progression Social',
     code: 'ESG_SOCIAL_COMPLETION',
     description: 'Indicateurs sociaux complétés / total',
     norm_reference: 'N/A - Métrique interne',
@@ -520,7 +520,7 @@ export const indicators: Indicator[] = [
   
   {
     id: 'ind-esg-gov-completion',
-    name: 'Complétude Gouvernance',
+    name: 'Progression Gouvernance',
     code: 'ESG_GOV_COMPLETION',
     description: 'Indicateurs gouvernance complétés / total',
     norm_reference: 'N/A - Métrique interne',
@@ -1373,8 +1373,8 @@ export const calculationProfiles: CalculationProfile[] = [
   {
     id: 'prof-datapoints-completion',
     indicator_id: 'ind-datapoints-completion',
-    calculation_method_text: 'Calcul du pourcentage de complétude globale des indicateurs.',
-    formula_text: 'Taux complétude = (Data points validés / Total data points) × 100',
+    calculation_method_text: 'Calcul du pourcentage de progression globale des indicateurs.',
+    formula_text: 'Taux progression = (Data points validés / Total data points) × 100',
     steps: [
       '1. Compter les data points validés',
       '2. Compter le total de data points',
@@ -1391,7 +1391,7 @@ export const calculationProfiles: CalculationProfile[] = [
   {
     id: 'prof-esg-env',
     indicator_id: 'ind-esg-env-completion',
-    calculation_method_text: 'Calcul du taux de complétude du pilier Environnemental (62 indicateurs complétés sur 70 au total).',
+    calculation_method_text: 'Calcul du taux de progression du pilier Environnemental (62 indicateurs complétés sur 70 au total).',
     formula_text: 'Taux ENV = (Indicateurs ENV complétés / Total indicateurs ENV) × 100',
     steps: [
       '1. Filtrer les indicateurs du pilier E',
@@ -1409,7 +1409,7 @@ export const calculationProfiles: CalculationProfile[] = [
   {
     id: 'prof-esg-social',
     indicator_id: 'ind-esg-social-completion',
-    calculation_method_text: 'Calcul du taux de complétude du pilier Social (52 indicateurs complétés sur 64 au total).',
+    calculation_method_text: 'Calcul du taux de progression du pilier Social (52 indicateurs complétés sur 64 au total).',
     formula_text: 'Taux SOCIAL = (Indicateurs S complétés / Total indicateurs S) × 100',
     steps: [
       '1. Filtrer les indicateurs du pilier S',
@@ -1427,7 +1427,7 @@ export const calculationProfiles: CalculationProfile[] = [
   {
     id: 'prof-esg-gov',
     indicator_id: 'ind-esg-gov-completion',
-    calculation_method_text: 'Calcul du taux de complétude du pilier Gouvernance (38 indicateurs complétés sur 46 au total).',
+    calculation_method_text: 'Calcul du taux de progression du pilier Gouvernance (38 indicateurs complétés sur 46 au total).',
     formula_text: 'Taux GOV = (Indicateurs G complétés / Total indicateurs G) × 100',
     steps: [
       '1. Filtrer les indicateurs du pilier G',

@@ -83,13 +83,13 @@ export function ComplianceLibrary({ posture, parcours }: ComplianceLibraryProps)
             <div className="flex items-center gap-3 mb-2">
               <BookOpen className="w-8 h-8 text-[#0F4C3A]" />
               <h1 className="text-2xl font-semibold text-foreground">
-                {isCsrd ? 'Bibliothèque de Conformité CSRD/ESRS' : 'Référentiel ESG'}
+                {isCsrd ? 'Bibliothèque de Conformité CSRD/ESRS' : 'Standard ESG'}
               </h1>
             </div>
             <p className="text-gray-600">
               {isCsrd 
                 ? 'Source de vérité réglementaire — Directive CSRD, normes ESRS et guides officiels'
-                : 'Référentiel des bonnes pratiques et standards ESG'
+                : 'Guide des bonnes pratiques et standards ESG'
               }
             </p>
           </div>

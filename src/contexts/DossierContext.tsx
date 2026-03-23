@@ -1,32 +1,48 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import {
+  idbGetDossiers,
+  idbPutDossier,
+  idbDeleteDossier,
+} from '@/services/idbService';
+import { useUser } from '@/contexts/UserContext';
+import { v4 as uuidv4 } from 'uuid';
+
+// Phase 12b : types de période
+export type PeriodMode = 'annuel' | 'trimestriel' | 'mensuel' | 'personnalise';
+
+export interface CustomPeriod {
+  id: string;     // ex: "S1", "B1" — slug libre (sans "::")
+  label: string;  // ex: "Semestre 1", "Bimestre Jan-Fév"
+}
 
 export interface Dossier {
   id: string;
   name: string;
   clientOrg: string;
   fiscalYear: string;
-  
-  // Type de mission = posture principale
+  referentielId?: string;   // ex: "vsme-complet", "bilan-carbone"
   missionType: "Conseil" | "Audit";
-  
-  // Contexte réglementaire (secondaire)
   pathwayType: "CSRD_Mandatory" | "ESG_Voluntary";
-  
   providerOrg: string;
   leadConsultant: string;
   startDate: string;
   endDate?: string;
-  
-  // 🆕 Workflows sélectionnés (remplace packType)
   selectedWorkflows?: string[];
-  packType?: string; // Deprecated, keep for backward compatibility
-  
+  packType?: string;
   createdAt: string;
   status: "draft" | "active" | "completed";
+  // Phase 12b : mode de période (optionnel pour rétrocompatibilité)
+  periodMode?: PeriodMode;
+  customPeriods?: CustomPeriod[];
+  // RGPD Phase 1 : isolation par organisation
+  organizationId?: string;
+  ownerId?: string;
 }
+
 
 interface DossierContextType {
   dossiers: Dossier[];
+  loading: boolean;
   createDossier: (dossier: Omit<Dossier, 'id' | 'createdAt' | 'status'>) => string;
   getDossier: (id: string) => Dossier | undefined;
   updateDossier: (id: string, updates: Partial<Dossier>) => void;
@@ -36,98 +52,69 @@ interface DossierContextType {
 const DossierContext = createContext<DossierContextType | undefined>(undefined);
 
 export function DossierProvider({ children }: { children: ReactNode }) {
-  const [dossiers, setDossiers] = useState<Dossier[]>([
-    // Dossiers de démo
-    {
-      id: "dossier-001",
-      name: "Entreprise Example SAS - CSRD 2025",
-      clientOrg: "example-sas",
-      fiscalYear: "2025",
-      missionType: "Conseil",
-      pathwayType: "CSRD_Mandatory",
-      providerOrg: "Cabinet ABC",
-      leadConsultant: "sophie",
-      startDate: "2025-01-15",
-      endDate: "2025-12-31",
-      selectedWorkflows: ["bilan-carbone", "csrd-complete", "due-diligence"],
-      createdAt: "2025-01-10T10:00:00Z",
-      status: "active"
-    },
-    {
-      id: "dossier-002",
-      name: "Tech Innovate SARL - ESG 2025",
-      clientOrg: "tech-innovate",
-      fiscalYear: "2025",
-      missionType: "Conseil",
-      pathwayType: "ESG_Voluntary",
-      providerOrg: "ESG Consulting",
-      leadConsultant: "thomas",
-      startDate: "2025-02-01",
-      selectedWorkflows: ["bilan-carbone", "diagnostic-esg"],
-      createdAt: "2025-01-20T14:30:00Z",
-      status: "active"
-    }
-  ]);
+  const [dossiers, setDossiers] = useState<Dossier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useUser();
 
-  // 🔧 Debug: Confirm provider is mounted (only once)
+  // ── Charger depuis IDB au démarrage ──────────────────────────────────────
   useEffect(() => {
-    console.log('✅ DossierProvider mounted with', dossiers.length, 'initial dossiers');
-  }, []); // Empty dependency array = only run once on mount
-
-  // 🔧 Debug: Log whenever dossiers change
-  useEffect(() => {
-    console.log('📊 Dossiers state updated. Current count:', dossiers.length);
-  }, [dossiers]);
-
-  const createDossier = (dossierData: Omit<Dossier, 'id' | 'createdAt' | 'status'>): string => {
-    const newDossier: Dossier = {
-      ...dossierData,
-      id: `dossier-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      status: "active"
-    };
-    
-    console.log('🆕 Creating new dossier:', newDossier);
-    setDossiers(prev => {
-      const updated = [...prev, newDossier];
-      console.log('✅ Dossiers updated. New count:', updated.length);
-      return updated;
+    let cancelled = false;
+    idbGetDossiers().then(stored => {
+      if (cancelled) return;
+      // RGPD: filter by organization if user has one (backward compat: keep all if no org)
+      const filtered = currentUser?.organizationId
+        ? stored.filter(d => !d.organizationId || d.organizationId === currentUser.organizationId)
+        : stored;
+      setDossiers(filtered);
+      setLoading(false);
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
     });
-    
+    return () => { cancelled = true; };
+  }, [currentUser?.organizationId]);
+
+  // ── CRUD ─────────────────────────────────────────────────────────────────
+  const createDossier = (data: Omit<Dossier, 'id' | 'createdAt' | 'status'>): string => {
+    const newDossier: Dossier = {
+      ...data,
+      id: `dossier-${uuidv4()}`,
+      createdAt: new Date().toISOString(),
+      status: 'active',
+      organizationId: data.organizationId || currentUser?.organizationId || '',
+      ownerId: data.ownerId || currentUser?.id || '',
+    };
+    setDossiers(prev => [...prev, newDossier]);
+    idbPutDossier(newDossier);
     return newDossier.id;
   };
 
-  const getDossier = (id: string): Dossier | undefined => {
-    return dossiers.find(d => d.id === id);
-  };
+  const getDossier = (id: string) => dossiers.find(d => d.id === id);
 
   const updateDossier = (id: string, updates: Partial<Dossier>) => {
-    setDossiers(prev => 
-      prev.map(d => d.id === id ? { ...d, ...updates } : d)
+    setDossiers(prev =>
+      prev.map(d => {
+        if (d.id !== id) return d;
+        const updated = { ...d, ...updates };
+        idbPutDossier(updated);
+        return updated;
+      })
     );
   };
 
   const deleteDossier = (id: string) => {
     setDossiers(prev => prev.filter(d => d.id !== id));
+    idbDeleteDossier(id);
   };
 
   return (
-    <DossierContext.Provider value={{
-      dossiers,
-      createDossier,
-      getDossier,
-      updateDossier,
-      deleteDossier
-    }}>
+    <DossierContext.Provider value={{ dossiers, loading, createDossier, getDossier, updateDossier, deleteDossier }}>
       {children}
     </DossierContext.Provider>
   );
 }
 
 export function useDossiers() {
-  const context = useContext(DossierContext);
-  if (!context) {
-    throw new Error('useDossiers must be used within a DossierProvider');
-  }
-  return context;
+  const ctx = useContext(DossierContext);
+  if (!ctx) throw new Error('useDossiers must be used within DossierProvider');
+  return ctx;
 }

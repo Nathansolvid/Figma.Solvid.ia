@@ -206,37 +206,19 @@ export function PackView({ pack: propPack, packId, currentUserRole, currentUserI
 
   // Transform backend pack data to frontend format using useMemo for performance
   const pack = useMemo(() => {
-    console.log('🔄 PackView useMemo - Transforming pack data...');
-    console.log('  - propPack:', propPack);
-    console.log('  - backendPack:', backendPack);
     
     if (propPack) {
-      console.log('✅ Using propPack (passed as prop)');
       return propPack; // Use prop if provided
     }
     if (!backendPack) {
-      console.log('⚠️ No backendPack available');
       return null;
     }
-    
-    console.log('📦 backendPack structure:', {
-      id: backendPack.id,
-      name: backendPack.name,
-      foldersCount: backendPack.folders?.length || 0,
-      folders: backendPack.folders?.map((f: any) => ({
-        id: f.id,
-        name: f.name,
-        indicatorsCount: f.indicators?.length || 0
-      }))
-    });
     
     // Extract all indicators from all folders
     const allIndicators = backendPack.folders?.flatMap((folder: any) => 
       folder.indicators || []
     ) || [];
     
-    console.log('📊 Total indicators extracted:', allIndicators.length);
-    console.log('📊 First few indicators:', allIndicators.slice(0, 3));
     
     // Extract all evidence from all indicators
     const allEvidence = allIndicators.flatMap((indicator: any) => 
@@ -263,7 +245,6 @@ export function PackView({ pack: propPack, packId, currentUserRole, currentUserI
       comment: ind.comment || '',
     }));
     
-    console.log('✅ Checklist items created:', checklistItems.length);
     
     // Transform indicators to KPI requirements
     const kpiRequirements: KPIRequirement[] = allIndicators.map((ind: any) => ({

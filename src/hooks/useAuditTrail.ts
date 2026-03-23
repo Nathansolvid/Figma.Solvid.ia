@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/services/api';
 import { dataProvider } from '@/services/dataProvider'; // 🆕 Add dataProvider import
 import { toast } from 'sonner';
-import { getAuditEntriesByIndicator, getAuditEntriesByPack, getAllAuditEntries } from '@/data/auditData';
 
 // Query Keys
 export const auditKeys = {
@@ -65,15 +64,14 @@ export function useIndicatorAuditTrail(indicatorId: string | null) {
     queryKey: auditKeys.indicator(indicatorId || ''),
     queryFn: async () => {
       if (!indicatorId) throw new Error('Indicator ID is required');
-      
-      // DEMO MODE: Use mock data directly instead of API call
-      console.log(`🕒 [DEMO MODE] Loading audit trail for indicator: ${indicatorId}`);
-      
-      const entries = getAuditEntriesByIndicator(indicatorId);
-      
-      console.log(`✅ [DEMO MODE] Found ${entries.length} audit entries for indicator ${indicatorId}`);
-      
-      return entries;
+
+      try {
+        const entries = await dataProvider.store.listByIndex('audit_logs', 'entityId', indicatorId);
+        return entries as unknown as AuditEntry[];
+      } catch (error: any) {
+        console.warn(`⚠️ Failed to load audit trail for indicator ${indicatorId}:`, error.message);
+        return [];
+      }
     },
     enabled: !!indicatorId,
     staleTime: 2 * 60 * 1000, // 2 minutes - audit trail change fréquemment
@@ -88,12 +86,10 @@ export function usePackAuditTrail(packId: string | null) {
     queryFn: async () => {
       if (!packId) throw new Error('Pack ID is required');
       
-      console.log(`🕒 Loading audit trail for pack from local storage: ${packId}`);
       
       try {
         // 🆕 Use dataProvider.store.listByIndex instead of apiClient.request
         const entries = await dataProvider.store.listByIndex('audit_logs', 'entityId', packId);
-        console.log(`✅ Found ${entries.length} audit entries for pack ${packId}`);
         return entries;
       } catch (error: any) {
         // If loading fails, return empty array instead of crashing
@@ -245,14 +241,7 @@ export function useOrganizationAuditTrail(filters?: AuditFilters) {
   return useQuery({
     queryKey: [...auditKeys.organization(), filters],
     queryFn: async () => {
-      console.log('🔍 useOrganizationAuditTrail - Fetching data...');
       const response = await apiClient.getOrganizationAuditTrail(filters);
-      console.log('✅ useOrganizationAuditTrail - Response received:', {
-        entriesCount: response.entries?.length || 0,
-        total: response.total,
-        hasMore: response.hasMore,
-        firstEntry: response.entries?.[0]
-      });
       return {
         entries: response.entries as AuditEntry[],
         total: response.total as number,
@@ -269,9 +258,7 @@ export function useAuditStatistics(filters?: Omit<AuditFilters, 'limit' | 'offse
   return useQuery({
     queryKey: [...auditKeys.statistics(), filters],
     queryFn: async () => {
-      console.log('📊 useAuditStatistics - Fetching data...');
       const response = await apiClient.getAuditStatistics(filters);
-      console.log('✅ useAuditStatistics - Response received:', response);
       return { statistics: response.statistics as AuditStatistics };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - statistics moins urgentes

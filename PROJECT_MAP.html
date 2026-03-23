@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solvid.IA — Project Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0a0f1a;
+    color: #e2e8f0;
+    padding: 32px;
+    min-height: 100vh;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #10B981, #6366F1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p {
+    color: #94a3b8;
+    font-size: 1rem;
+  }
+  .header .badges {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 12px;
+  }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-green { background: #059669; color: white; }
+  .badge-blue { background: #3b82f6; color: white; }
+  .badge-purple { background: #7c3aed; color: white; }
+  .badge-amber { background: #d97706; color: white; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 320px 1fr 1fr;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 1200px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .card h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 .icon { font-size: 1.3rem; }
+
+  /* Card themes */
+  .card-tree { background: linear-gradient(135deg, #0f2922, #0a1f1a); border: 1px solid #059669; }
+  .card-tree h3 { color: #34d399; }
+
+  .card-context { background: linear-gradient(135deg, #1a1333, #0f0d2a); border: 1px solid #7c3aed; }
+  .card-context h3 { color: #a78bfa; }
+
+  .card-service { background: linear-gradient(135deg, #1a2233, #0f1929); border: 1px solid #3b82f6; }
+  .card-service h3 { color: #60a5fa; }
+
+  .card-feature { background: linear-gradient(135deg, #2a1f0a, #1f1a0a); border: 1px solid #d97706; }
+  .card-feature h3 { color: #fbbf24; }
+
+  .card-config { background: linear-gradient(135deg, #1a2a2a, #0f1f1f); border: 1px solid #0891b2; }
+  .card-config h3 { color: #22d3ee; }
+
+  .card-rbac { background: linear-gradient(135deg, #2a0f1a, #1f0a14); border: 1px solid #e11d48; }
+  .card-rbac h3 { color: #fb7185; }
+
+  .card-data { background: linear-gradient(135deg, #1a1a2e, #0f0f20); border: 1px solid #8b5cf6; }
+  .card-data h3 { color: #c4b5fd; }
+
+  .card-flags { background: linear-gradient(135deg, #1a2e1a, #0f200f); border: 1px solid #22c55e; }
+  .card-flags h3 { color: #4ade80; }
+
+  /* Tree structure */
+  .tree { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; line-height: 1.7; }
+  .tree .dir { color: #fbbf24; font-weight: 600; }
+  .tree .file { color: #94a3b8; }
+  .tree .comment { color: #4b5563; font-style: italic; }
+  .tree .highlight { color: #34d399; font-weight: 600; }
+
+  /* Lists */
+  .item-list { list-style: none; font-size: 0.85rem; }
+  .item-list li {
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .item-list li:last-child { border-bottom: none; }
+  .item-list .label { color: #e2e8f0; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+  .item-list .desc { color: #94a3b8; font-size: 0.8rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: #10b981; }
+  .dot-blue { background: #3b82f6; }
+  .dot-purple { background: #7c3aed; }
+  .dot-amber { background: #d97706; }
+  .dot-red { background: #ef4444; }
+  .dot-cyan { background: #06b6d4; }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+  .tag-on { background: #059669; color: white; }
+  .tag-off { background: #374151; color: #9ca3af; }
+  .tag-wip { background: #d97706; color: white; }
+
+  /* Connections */
+  .provider-stack {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 8px;
+  }
+  .provider-stack .layer {
+    padding: 6px 12px;
+    margin: 4px 0;
+    border-radius: 8px;
+    border-left: 3px solid;
+    background: rgba(255,255,255,0.03);
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #64748b;
+    margin: 16px 0 8px;
+    font-weight: 600;
+  }
+
+  /* Full-width cards */
+  .full-width { grid-column: 1 / -1; }
+  .two-col { grid-column: span 2; }
+
+  /* Matrix table */
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin-top: 8px;
+  }
+  .matrix th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  .matrix td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .matrix .check { color: #10b981; font-weight: bold; }
+  .matrix .cross { color: #ef4444; }
+
+  /* Clickable expand */
+  .expandable { cursor: pointer; }
+  .expandable:hover { background: rgba(255,255,255,0.03); border-radius: 8px; }
+  .expand-content { display: none; padding: 8px 0 0 20px; font-size: 0.8rem; color: #94a3b8; }
+  .expand-content.open { display: block; }
+
+  .footer {
+    text-align: center;
+    margin-top: 40px;
+    color: #475569;
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Solvid.IA</h1>
+  <p>Plateforme ESG & CSRD — Audit-Ready Data Room</p>
+  <div class="badges">
+    <span class="badge badge-green">React 18 + TypeScript</span>
+    <span class="badge badge-blue">Vite 6 + Tailwind v4</span>
+    <span class="badge badge-purple">Supabase + IndexedDB</span>
+    <span class="badge badge-amber">57 Views · 24 Services</span>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- ═══ COLUMN 1: Project Tree ═══ -->
+  <div class="card card-tree" style="grid-row: span 3;">
+    <h3><span class="icon">📁</span> Project Structure</h3>
+    <div class="tree">
+<span class="dir">src/</span>
+├── <span class="dir">app/</span>
+│   ├── <span class="highlight">App.tsx</span> <span class="comment"># Provider stack</span>
+│   ├── <span class="highlight">AppContent.tsx</span> <span class="comment"># Router + Sidebar</span>
+│   ├── AuthPageLocal.tsx
+│   └── <span class="dir">components/</span>
+│       ├── <span class="dir">ui/</span> <span class="comment"># 50+ shadcn (DO NOT EDIT)</span>
+│       ├── <span class="dir">views/</span> <span class="comment"># 57 feature views</span>
+│       ├── <span class="dir">features/</span> <span class="comment"># Excel import, sync</span>
+│       └── <span class="dir">collaboration/</span> <span class="comment"># Comments</span>
+├── <span class="dir">contexts/</span> <span class="comment"># 4 React Contexts</span>
+│   ├── <span class="highlight">UserContext.tsx</span>
+│   ├── <span class="highlight">DossierContext.tsx</span>
+│   ├── <span class="highlight">VSMEDataContext.tsx</span>
+│   └── <span class="highlight">DossierDataContext.tsx</span>
+├── <span class="dir">services/</span> <span class="comment"># 24 modules</span>
+│   ├── authService.ts
+│   ├── dataProvider.ts
+│   ├── idbService.ts
+│   ├── syncEngine.ts
+│   ├── packService.ts
+│   ├── erpConnectorService.ts
+│   ├── erpCategorizationEngine.ts
+│   ├── erpESGAggregator.ts
+│   ├── aiQualitativeService.ts
+│   ├── exportService.ts
+│   └── smartImportMatcher.ts
+├── <span class="dir">hooks/</span> <span class="comment"># 19 custom hooks</span>
+├── <span class="dir">types/</span> <span class="comment"># TS interfaces</span>
+├── <span class="dir">data/</span> <span class="comment"># VSME referential</span>
+├── <span class="dir">lib/</span> <span class="comment"># Query client, Supabase</span>
+├── <span class="dir">utils/</span> <span class="comment"># Calc, export, parsing</span>
+└── <span class="dir">styles/</span> <span class="comment"># Tailwind + theme</span>
+
+<span class="dir" style="color:#22d3ee;">Root files:</span>
+├── <span class="highlight">CLAUDE.md</span> <span class="comment"># Project memory</span>
+├── <span class="highlight">.env.example</span>
+├── vite.config.ts
+├── tsconfig.json
+└── package.json <span class="comment"># pnpm</span>
+    </div>
+  </div>
+
+  <!-- ═══ Provider Stack ═══ -->
+  <div class="card card-context">
+    <h3><span class="icon">🧠</span> Context Providers</h3>
+    <div class="provider-stack">
+      <div class="layer" style="border-color: #ef4444;">ErrorBoundary</div>
+      <div class="layer" style="border-color: #3b82f6; margin-left: 12px;">QueryClientProvider</div>
+      <div class="layer" style="border-color: #a78bfa; margin-left: 24px;">UserProvider <span style="color:#64748b">— auth, profile, demo</span></div>
+      <div class="layer" style="border-color: #10b981; margin-left: 36px;">DossierProvider <span style="color:#64748b">— CRUD, IDB</span></div>
+      <div class="layer" style="border-color: #fbbf24; margin-left: 48px;">DossierDataProvider <span style="color:#64748b">— DMA, team</span></div>
+      <div class="layer" style="border-color: #06b6d4; margin-left: 60px;">VSMEDataProvider <span style="color:#64748b">— values, formulas</span></div>
+      <div class="layer" style="border-color: #f472b6; margin-left: 72px;">AppContent <span style="color:#64748b">— router + UI</span></div>
+    </div>
+  </div>
+
+  <!-- ═══ Data Persistence ═══ -->
+  <div class="card card-data">
+    <h3><span class="icon">💾</span> Data Persistence</h3>
+    <ul class="item-list">
+      <li><div class="dot dot-green"></div><span class="label">IndexedDB</span><span class="desc">— Primary cache (offline-first)</span></li>
+      <li style="padding-left: 20px; font-size: 0.78rem; color: #94a3b8;">
+        Stores: <code style="color:#fbbf24">dossiers</code> · <code style="color:#fbbf24">vsme_values</code> (v3) · <code style="color:#fbbf24">mission_notes</code>
+      </li>
+      <li><div class="dot dot-blue"></div><span class="label">Supabase</span><span class="desc">— Cloud sync (fire-and-forget)</span></li>
+      <li><div class="dot dot-amber"></div><span class="label">LocalStorage</span><span class="desc">— Session, credentials, flags</span></li>
+      <li><div class="dot dot-purple"></div><span class="label">SessionStorage</span><span class="desc">— API keys (obfuscated)</span></li>
+    </ul>
+  </div>
+
+  <!-- ═══ Services ═══ -->
+  <div class="card card-service two-col">
+    <h3><span class="icon">⚙️</span> Key Services (24 modules)</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+      <ul class="item-list">
+        <li><div class="dot dot-green"></div><span class="label">authService</span><span class="desc">— PBKDF2, sessions</span></li>
+        <li><div class="dot dot-green"></div><span class="label">dataProvider</span><span class="desc">— Local/API abstraction</span></li>
+        <li><div class="dot dot-green"></div><span class="label">idbService</span><span class="desc">— IndexedDB CRUD, migrations</span></li>
+        <li><div class="dot dot-green"></div><span class="label">syncEngine</span><span class="desc">— Write-through Supabase</span></li>
+        <li><div class="dot dot-green"></div><span class="label">packService</span><span class="desc">— Packs/livrables CRUD</span></li>
+        <li><div class="dot dot-green"></div><span class="label">exportService</span><span class="desc">— Excel/PDF generation</span></li>
+      </ul>
+      <ul class="item-list">
+        <li><div class="dot dot-amber"></div><span class="label">erpConnectorService</span><span class="desc">— ERP catalog, sync</span></li>
+        <li><div class="dot dot-amber"></div><span class="label">erpCategorizationEngine</span><span class="desc">— 3-tier classify</span></li>
+        <li><div class="dot dot-amber"></div><span class="label">erpESGAggregator</span><span class="desc">— Emission factors</span></li>
+        <li><div class="dot dot-blue"></div><span class="label">aiQualitativeService</span><span class="desc">— Claude API</span></li>
+        <li><div class="dot dot-green"></div><span class="label">smartImportMatcher</span><span class="desc">— ML column matching</span></li>
+        <li><div class="dot dot-purple"></div><span class="label">collaborationService</span><span class="desc">— BroadcastChannel</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ═══ Feature Flags ═══ -->
+  <div class="card card-flags">
+    <h3><span class="icon">🚩</span> Feature Flags</h3>
+    <p style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">src/featureFlags.ts</p>
+    <ul class="item-list">
+      <li><span class="label">packs</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">aiAssistant</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">connectors</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">advancedDash</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">completenessScore</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">realTimeNotifications</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">autoMapping</span><span class="tag tag-on">ON</span></li>
+      <li><span class="label">csrdFull</span><span class="tag tag-off">OFF</span></li>
+      <li><span class="label">multiNormesView</span><span class="tag tag-off">OFF</span></li>
+      <li><span class="label">benchmarking</span><span class="tag tag-off">OFF</span></li>
+    </ul>
+  </div>
+
+  <!-- ═══ RBAC ═══ -->
+  <div class="card card-rbac">
+    <h3><span class="icon">🔐</span> RBAC Permissions</h3>
+    <p style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">src/permissions.ts · can(role, action, resource?, context?)</p>
+    <table class="matrix">
+      <tr><th>Role</th><th>Create</th><th>Edit</th><th>Approve</th><th>AI</th></tr>
+      <tr><td style="color:#c4b5fd">ADMIN</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td style="color:#fb7185">CLIENT_OWNER</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+      <tr><td style="color:#60a5fa">CONSULTANT</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="check">✓</td></tr>
+      <tr><td style="color:#fbbf24">AUDITOR</td><td class="cross">✗</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td></tr>
+      <tr><td style="color:#94a3b8">VIEWER</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    </table>
+    <p class="section-title" style="margin-top:12px;">Postures</p>
+    <ul class="item-list">
+      <li><div class="dot dot-green"></div><span class="label">conseil</span><span class="desc">— Full edit, AI, DMA</span></li>
+      <li><div class="dot dot-amber"></div><span class="label">pre-audit</span><span class="desc">— Audit alerts, blockers</span></li>
+      <li><div class="dot dot-red"></div><span class="label">audit-externe</span><span class="desc">— Read-only + approve</span></li>
+    </ul>
+  </div>
+
+  <!-- ═══ Views (57) ═══ -->
+  <div class="card card-feature full-width">
+    <h3><span class="icon">📱</span> Main Views (57 components)</h3>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px;">
+      <div>
+        <p class="section-title" style="color:#34d399">Core Workflow</p>
+        <ul class="item-list">
+          <li><div class="dot dot-green"></div><span class="label">Dashboard</span></li>
+          <li><div class="dot dot-green"></div><span class="label">ListeDossiers</span></li>
+          <li><div class="dot dot-green"></div><span class="label">CreationDossier</span></li>
+          <li><div class="dot dot-green"></div><span class="label">DetailDossier</span></li>
+          <li><div class="dot dot-green"></div><span class="label">SaisieDossier</span></li>
+          <li><div class="dot dot-green"></div><span class="label">EvidenceVault</span></li>
+          <li><div class="dot dot-green"></div><span class="label">ChecklistWorkflow</span></li>
+          <li><div class="dot dot-green"></div><span class="label">ExportsLivrables</span></li>
+        </ul>
+      </div>
+      <div>
+        <p class="section-title" style="color:#60a5fa">Data & Analysis</p>
+        <ul class="item-list">
+          <li><div class="dot dot-green"></div><span class="label">DonneesQuantitatives</span></li>
+          <li><div class="dot dot-green"></div><span class="label">DonneesESG</span></li>
+          <li><div class="dot dot-green"></div><span class="label">ImportCenter</span></li>
+          <li><div class="dot dot-green"></div><span class="label">DoubleMaterialiteNew</span></li>
+          <li><div class="dot dot-green"></div><span class="label">ComplianceChecker</span></li>
+          <li><div class="dot dot-green"></div><span class="label">AuditCenter</span></li>
+          <li><div class="dot dot-green"></div><span class="label">Historique</span></li>
+        </ul>
+      </div>
+      <div>
+        <p class="section-title" style="color:#a78bfa">AI & Integration</p>
+        <ul class="item-list">
+          <li><div class="dot dot-green"></div><span class="label">RapportIA</span></li>
+          <li><div class="dot dot-green"></div><span class="label">AIChatbot</span> <span class="tag tag-on">ON</span></li>
+          <li><div class="dot dot-amber"></div><span class="label">AnalyseIA</span> <span class="tag tag-wip">WIP</span></li>
+          <li><div class="dot dot-amber"></div><span class="label">ERPConnectorView</span> <span class="tag tag-wip">WIP</span></li>
+          <li><div class="dot dot-green"></div><span class="label">VSMEFrameworks</span></li>
+          <li><div class="dot dot-green"></div><span class="label">VSMEFrameworkDetail</span></li>
+        </ul>
+      </div>
+      <div>
+        <p class="section-title" style="color:#fbbf24">Settings & Help</p>
+        <ul class="item-list">
+          <li><div class="dot dot-green"></div><span class="label">Parametres</span></li>
+          <li><div class="dot dot-green"></div><span class="label">GuideAide</span></li>
+          <li><div class="dot dot-green"></div><span class="label">Glossaire</span></li>
+          <li><div class="dot dot-green"></div><span class="label">BibliothequeTemplates</span></li>
+          <li><div class="dot dot-green"></div><span class="label">BibliothequeWorkflows</span></li>
+          <li><div class="dot dot-green"></div><span class="label">Collaboration</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Config ═══ -->
+  <div class="card card-config">
+    <h3><span class="icon">🔧</span> Dev Config</h3>
+    <ul class="item-list">
+      <li><div class="dot dot-cyan"></div><span class="label">Vite 6.3.5</span><span class="desc">— @tailwindcss/vite</span></li>
+      <li><div class="dot dot-cyan"></div><span class="label">Port 3007</span><span class="desc">— node vite.js workaround</span></li>
+      <li><div class="dot dot-cyan"></div><span class="label">TypeScript</span><span class="desc">— strict, ES2020</span></li>
+      <li><div class="dot dot-cyan"></div><span class="label">pnpm</span><span class="desc">— package manager</span></li>
+      <li><div class="dot dot-cyan"></div><span class="label">Path alias</span><span class="desc">— @/ = src/</span></li>
+    </ul>
+    <p class="section-title" style="margin-top:12px;">Key Libraries</p>
+    <ul class="item-list">
+      <li><span class="desc">@radix-ui/* · shadcn/ui · lucide-react</span></li>
+      <li><span class="desc">@tanstack/react-query v5 · react-hook-form</span></li>
+      <li><span class="desc">jspdf · exceljs · xlsx · papaparse</span></li>
+      <li><span class="desc">recharts · react-dnd · sonner</span></li>
+    </ul>
+  </div>
+
+  <!-- ═══ VSME Data Model ═══ -->
+  <div class="card card-data">
+    <h3><span class="icon">📊</span> VSME Data Model</h3>
+    <div style="font-family:'JetBrains Mono'; font-size:0.75rem; background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; margin-bottom:12px;">
+      <span style="color:#c4b5fd">VSMEValue</span> {<br>
+      &nbsp; id: <span style="color:#fbbf24">`${dossierId}::${code}::${period}`</span><br>
+      &nbsp; dossierId: <span style="color:#94a3b8">string</span><br>
+      &nbsp; code: <span style="color:#94a3b8">string</span> <span style="color:#4b5563">// "B3.1"</span><br>
+      &nbsp; rawValue: <span style="color:#94a3b8">string</span><br>
+      &nbsp; statut: <span style="color:#34d399">"empty" | "partial" | "filled"</span><br>
+      &nbsp; period: <span style="color:#94a3b8">string</span> <span style="color:#4b5563">// "2025" | "2025-T1"</span><br>
+      }
+    </div>
+    <p class="section-title">Computed Fields (auto-calc)</p>
+    <ul class="item-list">
+      <li><span class="label" style="color:#fbbf24">B3.3 B3.4 B5.4 B7.4 B7.5 B8.4</span></li>
+    </ul>
+    <p class="section-title">Aggregation</p>
+    <ul class="item-list">
+      <li><span class="desc">SUM for MWh, tCO2e · AVG for %, ratios · Latest for Narratif</span></li>
+    </ul>
+  </div>
+
+  <!-- ═══ TODO / Roadmap ═══ -->
+  <div class="card card-feature">
+    <h3><span class="icon">🗺️</span> Roadmap</h3>
+    <p class="section-title" style="color:#34d399">Done</p>
+    <ul class="item-list">
+      <li><div class="dot dot-green"></div><span class="desc">VSME data entry + formulas</span></li>
+      <li><div class="dot dot-green"></div><span class="desc">Excel import + AI chatbot</span></li>
+      <li><div class="dot dot-green"></div><span class="desc">Evidence vault + Audit trail</span></li>
+      <li><div class="dot dot-green"></div><span class="desc">Double Materiality matrix</span></li>
+      <li><div class="dot dot-green"></div><span class="desc">PDF/Excel exports</span></li>
+    </ul>
+    <p class="section-title" style="color:#fbbf24">In Progress</p>
+    <ul class="item-list">
+      <li><div class="dot dot-amber"></div><span class="desc">ERP Connector (FEC parser)</span></li>
+      <li><div class="dot dot-amber"></div><span class="desc">Real-time collaboration</span></li>
+      <li><div class="dot dot-amber"></div><span class="desc">AnalyseIA dashboard</span></li>
+    </ul>
+    <p class="section-title" style="color:#ef4444">Missing</p>
+    <ul class="item-list">
+      <li><div class="dot dot-red"></div><span class="desc">Tests (vitest + Playwright)</span></li>
+      <li><div class="dot dot-red"></div><span class="desc">CI/CD pipeline</span></li>
+      <li><div class="dot dot-red"></div><span class="desc">Multi-normes (GRI/SFDR)</span></li>
+      <li><div class="dot dot-red"></div><span class="desc">Benchmarking sectoriel</span></li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="footer">
+  Solvid.IA Project Map — Generated 2026-03-23 — React 18 + TypeScript + Vite 6 + Tailwind v4 + Supabase
+</div>
+
+<script>
+  // Make items expandable on click
+  document.querySelectorAll('.expandable').forEach(el => {
+    el.addEventListener('click', () => {
+      const content = el.querySelector('.expand-content');
+      if (content) content.classList.toggle('open');
+    });
+  });
+</script>
+</body>
+</html>

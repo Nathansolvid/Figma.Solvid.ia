@@ -1,10 +1,8 @@
 /**
- * AUTH PAGE LOCAL - Authentification 100% locale (NO BLOCAGE)
- * 
- * Principe :
- * - Mode Test : Accès direct sans formulaire
- * - Créer compte : Créé localement, jamais d'échec
- * - Se connecter : Retrouve user local ou crée automatiquement (no-friction)
+ * AUTH PAGE - Authentification locale (email + mot de passe)
+ *
+ * Inscription publique + connexion.
+ * Les inscriptions sont validées par un admin avant accès.
  */
 
 import React, { useState } from 'react';
@@ -12,9 +10,10 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/app/components/ui/select';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/app/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
-import { Shield, Loader2, Rocket, User, Building2, Mail, Lock } from 'lucide-react';
+import { Checkbox } from '@/app/components/ui/checkbox';
+import { Shield, Loader2, User, Building2, Mail, Lock } from 'lucide-react';
 import { authService } from '@/services/authService';
 import { User as UserType } from '@/contexts/UserContext';
 import { Role } from '@/permissions';
@@ -22,70 +21,57 @@ import { toast } from 'sonner';
 
 interface AuthPageLocalProps {
   onLogin: (user: UserType) => void;
+  onNavigate?: (view: string) => void;
 }
 
-export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
+export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const [loading, setLoading] = useState(false);
 
   // Login form
-  const [loginEmail, setLoginEmail] = useState('test@solvid.ia');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
   // Signup form
   const [signupEmail, setSignupEmail] = useState('');
   const [signupName, setSignupName] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
   const [signupOrgName, setSignupOrgName] = useState('');
   const [signupRole, setSignupRole] = useState<string>('CLIENT_OWNER');
 
-  /**
-   * Mode Test - Accès direct sans formulaire
-   */
-  const handleTestMode = async () => {
-    setLoading(true);
-    
-    try {
-      console.log('🧪 Mode Test - Accès direct');
-      
-      // Auto-login as test user
-      const result = await authService.login({ email: 'test@solvid.ia' });
-      
-      const mappedUser: UserType = {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        role: mapRole(result.user.role),
-        organizationId: result.user.organizationId,
-        organizationName: result.organization.name,
-      };
-
-      onLogin(mappedUser);
-      toast.success('Mode Test activé !', {
-        description: 'Bienvenue dans Solvid.IA',
-      });
-    } catch (error: any) {
-      console.error('❌ Test mode error:', error);
-      toast.error('Erreur', { description: error.message });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // RGPD consent
+  const [acceptCGU, setAcceptCGU] = useState(false);
+  const [acceptAI, setAcceptAI] = useState(false);
 
   /**
    * Login
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!loginEmail || !loginPassword) {
+      toast.error('Veuillez remplir tous les champs');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      console.log('🔐 Login attempt:', loginEmail);
-      
-      const result = await authService.login({ 
-        email: loginEmail, 
-        password: loginPassword 
+      const result = await authService.login({
+        email: loginEmail,
+        password: loginPassword,
       });
 
-      console.log('✅ Login result:', result);
+      // Check subscription validity
+      const subCheck = await authService.checkSubscriptionValid(result.user.id);
+      if (!subCheck.valid) {
+        await authService.logout();
+        toast.error('Accès expiré', {
+          description: subCheck.reason || 'Votre abonnement a expiré. Contactez votre administrateur.',
+          duration: 6000,
+        });
+        setLoading(false);
+        return;
+      }
 
       const mappedUser: UserType = {
         id: result.user.id,
@@ -96,21 +82,14 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
         organizationName: result.organization.name,
       };
 
-      console.log('✅ Mapped user:', mappedUser);
-      console.log('🔄 Calling onLogin with user...');
-      
       onLogin(mappedUser);
-      
-      console.log('✅ onLogin called successfully');
-      
       toast.success('Connexion réussie !', {
         description: `Bienvenue ${result.user.name}`,
       });
     } catch (error: any) {
-      console.error('❌ Login error:', error);
-      console.error('❌ Error stack:', error?.stack);
-      toast.error('Erreur de connexion', { 
-        description: error?.message || 'Une erreur est survenue'
+      console.error('Login error:', error);
+      toast.error('Erreur de connexion', {
+        description: error?.message || 'Vérifiez vos identifiants',
       });
     } finally {
       setLoading(false);
@@ -122,44 +101,55 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
    */
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!signupEmail || !signupName || !signupPassword) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (signupPassword.length < 8) {
+      toast.error('Le mot de passe doit contenir au moins 8 caractères');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      console.log('✍️ Signup:', signupEmail);
-
-      const result = await authService.signup({
+      await authService.signup({
         email: signupEmail,
         name: signupName,
+        password: signupPassword,
         organizationName: signupOrgName,
         role: signupRole,
-      });
-
-      const mappedUser: UserType = {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        role: mapRole(result.user.role),
-        organizationId: result.user.organizationId,
-        organizationName: result.organization.name,
-      };
-
-      onLogin(mappedUser);
-      toast.success('Compte créé avec succès !', {
-        description: `Bienvenue ${result.user.name}`,
+        consentCGU: new Date().toISOString(),
+        consentAI: acceptAI ? new Date().toISOString() : null,
       });
     } catch (error: any) {
-      console.error('❌ Signup error:', error);
-      toast.error('Erreur lors de la création du compte', { 
-        description: error.message 
+      // Compte créé mais en attente de validation admin
+      if (error?.message === 'PENDING_APPROVAL') {
+        toast.success('Demande envoyée !', {
+          description: 'Votre compte a été créé. Un administrateur doit valider votre accès avant que vous puissiez vous connecter.',
+          duration: 8000,
+        });
+        // Reset form
+        setSignupEmail('');
+        setSignupName('');
+        setSignupPassword('');
+        setSignupOrgName('');
+        setSignupRole('CLIENT_OWNER');
+        setAcceptCGU(false);
+        setAcceptAI(false);
+        return;
+      }
+      console.error('Signup error:', error);
+      toast.error('Erreur lors de la création du compte', {
+        description: error?.message || 'Une erreur est survenue',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Helper to map role string to Role enum
-   */
   const mapRole = (role: string): Role => {
     const mapping: Record<string, Role> = {
       CLIENT_OWNER: Role.CLIENT_OWNER,
@@ -172,6 +162,7 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
     return mapping[role] || Role.VIEWER;
   };
 
+  // ---- Main Auth View ----
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#E8F3F0] to-white flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
@@ -183,46 +174,8 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
           <h1 className="text-3xl font-bold text-[#0A3B2E]">
             Solvid<span className="text-[#059669]">.IA</span>
           </h1>
-          <p className="text-sm text-gray-600">
-            ESG Audit-Ready Data Room
-          </p>
+          <p className="text-sm text-gray-600">Plateforme ESG Audit-Ready</p>
         </div>
-
-        {/* Mode Test Card */}
-        <Card className="border-2 border-[#059669] bg-white shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[#0A3B2E]">
-              <Rocket className="h-5 w-5 text-[#059669]" />
-              Mode Test - Accès Direct
-            </CardTitle>
-            <CardDescription>
-              Accédez immédiatement à l'application pour explorer toutes les fonctionnalités
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              onClick={handleTestMode}
-              disabled={loading}
-              className="w-full bg-[#059669] hover:bg-[#048558] text-white h-12 text-base"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Connexion...
-                </>
-              ) : (
-                <>
-                  <Rocket className="mr-2 h-5 w-5" />
-                  Lancer l'application
-                </>
-              )}
-            </Button>
-          </CardContent>
-          <CardFooter className="text-xs text-gray-500 text-center">
-            Mode développement - Toutes les données sont stockées localement
-          </CardFooter>
-        </Card>
 
         {/* Login/Signup Tabs */}
         <Card className="shadow-lg">
@@ -238,8 +191,7 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
                     <Label htmlFor="loginEmail" className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      Email
+                      <Mail className="h-4 w-4" /> Email
                     </Label>
                     <Input
                       id="loginEmail"
@@ -253,8 +205,7 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="loginPassword" className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
-                      Mot de passe (optionnel en mode local)
+                      <Lock className="h-4 w-4" /> Mot de passe
                     </Label>
                     <Input
                       id="loginPassword"
@@ -262,25 +213,19 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
+                      required
                     />
                   </div>
-
-                  <p className="text-xs text-gray-500">
-                    💡 Si le compte n'existe pas, il sera créé automatiquement (mode no-friction)
-                  </p>
                 </CardContent>
 
                 <CardFooter>
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full"
+                    className="w-full bg-[#059669] hover:bg-[#048558]"
                   >
                     {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Connexion...
-                      </>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion...</>
                     ) : (
                       'Se connecter'
                     )}
@@ -295,8 +240,7 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
                     <Label htmlFor="signupEmail" className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      Email
+                      <Mail className="h-4 w-4" /> Email
                     </Label>
                     <Input
                       id="signupEmail"
@@ -310,8 +254,7 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="signupName" className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Nom complet
+                      <User className="h-4 w-4" /> Nom complet
                     </Label>
                     <Input
                       id="signupName"
@@ -324,9 +267,23 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="signupPassword" className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" /> Mot de passe
+                    </Label>
+                    <Input
+                      id="signupPassword"
+                      type="password"
+                      placeholder="Minimum 8 caractères"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      minLength={8}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="signupOrgName" className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      Organisation
+                      <Building2 className="h-4 w-4" /> Organisation
                     </Label>
                     <Input
                       id="signupOrgName"
@@ -352,19 +309,59 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* RGPD Consent checkboxes */}
+                  <div className="space-y-3 pt-2 border-t border-gray-100">
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="acceptCGU"
+                        checked={acceptCGU}
+                        onCheckedChange={(checked) => setAcceptCGU(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <label htmlFor="acceptCGU" className="text-xs text-gray-600 leading-relaxed cursor-pointer">
+                        J'accepte les{' '}
+                        <button
+                          type="button"
+                          className="text-[#059669] underline hover:text-[#048558] font-medium"
+                          onClick={() => onNavigate?.('cgu')}
+                        >
+                          Conditions Générales d'Utilisation
+                        </button>{' '}
+                        et la{' '}
+                        <button
+                          type="button"
+                          className="text-[#059669] underline hover:text-[#048558] font-medium"
+                          onClick={() => onNavigate?.('politique-confidentialite')}
+                        >
+                          Politique de Confidentialité
+                        </button>
+                        {' '}<span className="text-red-500">*</span>
+                      </label>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="acceptAI"
+                        checked={acceptAI}
+                        onCheckedChange={(checked) => setAcceptAI(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <label htmlFor="acceptAI" className="text-xs text-gray-500 leading-relaxed cursor-pointer">
+                        J'accepte que mes données ESG soient traitées par l'intelligence artificielle
+                        (Anthropic Claude) pour générer des rapports <span className="text-gray-400">(optionnel)</span>
+                      </label>
+                    </div>
+                  </div>
                 </CardContent>
 
                 <CardFooter>
                   <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full"
+                    disabled={loading || !acceptCGU}
+                    className="w-full bg-[#059669] hover:bg-[#048558]"
                   >
                     {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Création...
-                      </>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</>
                     ) : (
                       'Créer mon compte'
                     )}
@@ -375,51 +372,32 @@ export function AuthPageLocal({ onLogin }: AuthPageLocalProps) {
           </Tabs>
         </Card>
 
-        {/* Info Footer */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-4 text-sm text-blue-900">
-            <p className="font-semibold mb-2">Mode Local Actif</p>
-            <ul className="space-y-1 text-xs">
-              <li>✅ Toutes les données stockées localement (IndexedDB)</li>
-              <li>✅ Aucune connexion serveur requise</li>
-              <li>✅ Fonctionne 100% offline</li>
-              <li>✅ Persistance complète (refresh = pas de perte)</li>
-            </ul>
-            
-            {/* 🆕 Reset Database Button */}
-            <div className="mt-4 pt-3 border-t border-blue-300">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (confirm('⚠️ Êtes-vous sûr de vouloir réinitialiser la base de données ? Toutes les données locales seront supprimées.')) {
-                    try {
-                      // Clear IndexedDB
-                      const dbName = 'SolvidIA_Local';
-                      await indexedDB.deleteDatabase(dbName);
-                      
-                      // Clear localStorage
-                      localStorage.clear();
-                      
-                      toast.success('Base de données réinitialisée', {
-                        description: 'Rechargement de la page...'
-                      });
-                      
-                      // Reload page
-                      setTimeout(() => window.location.reload(), 1000);
-                    } catch (error: any) {
-                      console.error('❌ Reset error:', error);
-                      toast.error('Erreur', { description: error.message });
-                    }
-                  }
-                }}
-                className="w-full text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
-              >
-                🔄 Réinitialiser la base de données
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Admin hint for first launch */}
+        <div className="text-center text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
+          Premier lancement ? Connectez-vous avec <span className="font-mono font-medium text-gray-700">nathan.glatt@icloud.com</span>
+        </div>
+
+        {/* Footer with legal links */}
+        <div className="text-center space-y-1">
+          <p className="text-xs text-gray-400">
+            Solvid.IA — Plateforme ESG sécurisée
+          </p>
+          <p className="text-xs text-gray-400">
+            <button
+              className="text-[#059669] hover:underline"
+              onClick={() => onNavigate?.('cgu')}
+            >
+              CGU
+            </button>
+            {' · '}
+            <button
+              className="text-[#059669] hover:underline"
+              onClick={() => onNavigate?.('politique-confidentialite')}
+            >
+              Politique de Confidentialité
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );

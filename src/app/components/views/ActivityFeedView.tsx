@@ -91,7 +91,6 @@ export function ActivityFeedView() {
       setActivities(sorted);
       calculateStats(sorted);
       
-      console.log(`✅ Loaded ${sorted.length} activity entries`);
     } catch (error) {
       console.error('Failed to load activities:', error);
       toast.error('Erreur lors du chargement des activités');

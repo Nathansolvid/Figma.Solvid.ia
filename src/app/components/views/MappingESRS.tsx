@@ -292,7 +292,7 @@ export function MappingESRS({ posture, parcours }: MappingESRSProps) {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground">Complétude</p>
+                <p className="text-sm text-muted-foreground">Progression</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-semibold">
                     {getCompletionPercentage(totalCompleted, totalRequirements)}%

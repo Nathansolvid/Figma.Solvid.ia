@@ -47,19 +47,16 @@ export function useDashboardStats(refreshKey?: any) {
 
   // 🆕 Reload whenever refreshKey changes
   useEffect(() => {
-    console.log('🔄 Dashboard stats hook triggered (refreshKey changed)');
     loadStats();
   }, [refreshKey]); // 🆕 Reload when refreshKey changes
 
   async function loadStats() {
     try {
-      console.log('📊 Loading dashboard stats from IndexedDB...');
 
       // 🆕 Get ALL packs (not just the first one)
       const packs = await dataProvider.store.list('pack_instances'); // ✅ Fixed: use underscore
       
       if (packs.length === 0) {
-        console.log('📭 No packs found - resetting to empty state');
         setStats({
           total: 0,
           missing: 0,
@@ -78,13 +75,11 @@ export function useDashboardStats(refreshKey?: any) {
         return;
       }
 
-      console.log(`📦 Found ${packs.length} pack(s) - aggregating all indicators`);
 
       // 🆕 Load checklist items instead of indicators for accurate stats
       const checklistItems = await dataProvider.store.list('checklist_items');
       
       if (checklistItems.length === 0) {
-        console.log('📭 No checklist items found - resetting to empty state');
         setStats({
           total: 0,
           missing: 0,
@@ -103,13 +98,7 @@ export function useDashboardStats(refreshKey?: any) {
         return;
       }
 
-      console.log(`📊 Found ${checklistItems.length} checklist items across ${packs.length} pack(s)`);
 
-      // 🔍 DEBUG: Log all checklist items with their status
-      console.log('🔍 DEBUG: All checklist items by status:');
-      checklistItems.forEach(item => {
-        console.log(`  - ${item.code} (${item.category}): ${item.status}`);
-      });
 
       // Count by status (mapping from uppercase statuses to lowercase)
       const statusCounts = {
@@ -152,12 +141,6 @@ export function useDashboardStats(refreshKey?: any) {
 
       setCategoryStats(categoryData);
 
-      console.log('✅ Dashboard stats loaded:', {
-        totalPacks: packs.length,
-        totalChecklistItems: checklistItems.length,
-        statusCounts,
-        categoryData,
-      });
     } catch (error) {
       console.error('❌ Failed to load dashboard stats:', error);
       // Reset to empty state on error

@@ -62,7 +62,6 @@ export function CommentThread({
     try {
       setLoading(true);
       const url = `https://${projectId}.supabase.co/functions/v1/make-server-aa780fc8/comments/${entityType}/${entityId}?threads=true`;
-      console.log(`📥 Loading comments for ${entityType}:${entityId}`, url);
       
       const response = await fetch(url, {
         headers: {
@@ -70,7 +69,6 @@ export function CommentThread({
         },
       });
 
-      console.log(`📥 Response status:`, response.status, response.statusText);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -79,7 +77,6 @@ export function CommentThread({
       }
 
       const data = await response.json();
-      console.log(`📥 Loaded ${data.threads?.length || 0} threads, ${data.totalComments || 0} total comments:`, data);
       setThreads(data.threads || []);
       setError(null);
     } catch (err: any) {

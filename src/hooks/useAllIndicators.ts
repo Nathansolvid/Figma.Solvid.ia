@@ -17,13 +17,11 @@ export function useAllIndicators() {
 
   async function loadIndicators() {
     try {
-      console.log('📊 Loading all indicators from IndexedDB...');
       setLoading(true);
       setError(null);
 
       const allIndicators = await dataProvider.store.list('indicators');
       
-      console.log(`✅ Loaded ${allIndicators.length} indicators`);
       setIndicators(allIndicators);
     } catch (err) {
       console.error('❌ Failed to load indicators:', err);

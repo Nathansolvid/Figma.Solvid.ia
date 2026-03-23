@@ -2,47 +2,64 @@
 
 :root {
   --font-size: 16px;
-  --background: #F8FAFB;
-  --foreground: #1A2E2A;
+  /* ── Typographie maquette ── */
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+
+  /* ── App background ── */
+  --background: #F0F4F1;
+  --foreground: #1A2E24;
   --card: #ffffff;
-  --card-foreground: #1A2E2A;
+  --card-foreground: #1A2E24;
   --popover: #ffffff;
-  --popover-foreground: #1A2E2A;
-  --primary: #0F4C3A;
+  --popover-foreground: #1A2E24;
+
+  /* ── Brand green ── */
+  --primary: #2D7A55;
   --primary-foreground: #ffffff;
-  --secondary: #E8F3F0;
-  --secondary-foreground: #0F4C3A;
-  --muted: #F1F5F9;
-  --muted-foreground: #64748B;
-  --accent: #D1F4E8;
-  --accent-foreground: #0F4C3A;
+  --secondary: #EDF7F1;
+  --secondary-foreground: #1A5F3F;
+  --muted: #F1F5F1;
+  --muted-foreground: #8aab98;
+  --accent: #EDF7F1;
+  --accent-foreground: #1A5F3F;
   --destructive: #DC2626;
   --destructive-foreground: #ffffff;
-  --border: #E2E8F0;
+  --border: #E2EDE7;
   --input: transparent;
   --input-background: #F8FAFC;
   --switch-background: #CBD5E1;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #0F4C3A;
-  --success: #059669;
+  --ring: #2D7A55;
+  --success: #2D9D5F;
   --success-foreground: #ffffff;
   --warning: #F59E0B;
   --warning-foreground: #ffffff;
-  --chart-1: #0F4C3A;
-  --chart-2: #059669;
-  --chart-3: #10B981;
-  --chart-4: #34D399;
+  --chart-1: #2D9D5F;
+  --chart-2: #2980B9;
+  --chart-3: #8E44AD;
+  --chart-4: #52B788;
   --chart-5: #6EE7B7;
   --radius: 0.5rem;
-  --sidebar: #0A3B2E;
-  --sidebar-foreground: #E8F3F0;
-  --sidebar-primary: #059669;
+
+  /* ── Sidebar maquette ── */
+  --sidebar: #0D3B27;
+  --sidebar-foreground: rgba(255,255,255,0.75);
+  --sidebar-primary: #2D7A55;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #0F4C3A;
+  --sidebar-accent: rgba(45,122,85,0.25);
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #0F4C3A;
-  --sidebar-ring: #059669;
+  --sidebar-border: rgba(255,255,255,0.07);
+  --sidebar-ring: #52B788;
+
+  /* ── ESG pillar colors ── */
+  --esg-e: #2D9D5F;
+  --esg-e-bg: #EDF7F1;
+  --esg-s: #2980B9;
+  --esg-s-bg: #EBF5FB;
+  --esg-g: #8E44AD;
+  --esg-g-bg: #F5EEF8;
 }
 
 .dark {

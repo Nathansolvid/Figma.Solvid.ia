@@ -73,13 +73,6 @@ export function EvidenceUpload({
     setUploadProgress(0);
 
     try {
-      console.log('📤 Starting evidence upload (LOCAL):', {
-        fileName: selectedFile.name,
-        indicatorId,
-        packId,
-        userId: currentUser.id,
-      });
-
       // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
@@ -100,7 +93,6 @@ export function EvidenceUpload({
       setUploadProgress(100);
       setUploadStatus('success');
 
-      console.log('✅ Evidence uploaded (LOCAL):', evidence.id);
 
       // Call success callback
       if (onUploadSuccess) {

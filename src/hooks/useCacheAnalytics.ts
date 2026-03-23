@@ -80,13 +80,11 @@ export function useCacheAnalytics() {
   // Function to clear all cache
   const clearCache = () => {
     queryClient.clear();
-    console.log('🗑️ Cache cleared');
   };
 
   // Function to invalidate all queries
   const invalidateAll = () => {
     queryClient.invalidateQueries();
-    console.log('🔄 All queries invalidated');
   };
 
   // Get detailed query info

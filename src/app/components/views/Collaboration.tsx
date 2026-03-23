@@ -1,464 +1,568 @@
+/**
+ * Espace Consultant — Notes de mission, intervenants, synthèse
+ * Données réelles persistées en IndexedDB (store: mission_notes)
+ */
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { Input } from "@/app/components/ui/input";
-import { 
-  Users,
-  Search,
-  MessageSquare,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  User,
-  Eye,
-  FileCheck,
-  AlertTriangle,
-  UserPlus
-} from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import {
+  MessageSquare, Users, TrendingUp, Plus, Trash2,
+  User, Briefcase, Building2, Calendar, Clock,
+  Flag, AlertTriangle, CheckCircle2, Lightbulb, RefreshCw,
+  Leaf, Heart, Shield,
+} from "lucide-react";
+import { useDossiers } from "@/contexts/DossierContext";
+import { useUser } from "@/contexts/UserContext";
+import { useVSMEData } from "@/contexts/VSMEDataContext";
+import {
+  idbGetNotesByDossier, idbPutNote, idbDeleteNote,
+  type MissionNote,
+} from "@/services/idbService";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 type PostureType = "conseil" | "pre-audit" | "audit-externe";
-type ParcoursType = "csrd-obligatoire" | "esg-structure";
 
 interface CollaborationProps {
   posture: PostureType;
-  parcours: ParcoursType;
+  parcours: "csrd-obligatoire" | "esg-structure";
+  dossierId: string;
 }
 
-const users = [
-  { 
-    id: 1, 
-    name: "Sophie Martin", 
-    email: "s.martin@entreprise.fr", 
-    role: "consultant", 
-    status: "active",
-    lastActivity: "Il y a 2h",
-    permissions: ["edit", "validate", "comment"]
-  },
-  { 
-    id: 2, 
-    name: "Thomas Dubois", 
-    email: "t.dubois@entreprise.fr", 
-    role: "client", 
-    status: "active",
-    lastActivity: "Il y a 30min",
-    permissions: ["edit", "comment"]
-  },
-  { 
-    id: 3, 
-    name: "Marie Laurent", 
-    email: "m.laurent@auditeur.fr", 
-    role: "auditeur", 
-    status: "active",
-    lastActivity: "Il y a 1 jour",
-    permissions: ["read", "comment"]
-  },
-  { 
-    id: 4, 
-    name: "Pierre Durand", 
-    email: "p.durand@entreprise.fr", 
-    role: "client", 
-    status: "active",
-    lastActivity: "Il y a 3h",
-    permissions: ["read", "comment"]
-  },
-];
+// ─── Config catégories ────────────────────────────────────────────────────────
+const CATEGORIES: Record<MissionNote['category'], { label: string; color: string; bg: string; icon: React.ElementType }> = {
+  general:     { label: "Note générale",      color: "#6b7280", bg: "#f3f4f6", icon: MessageSquare },
+  relance:     { label: "Relance client",     color: "#d97706", bg: "#fffbeb", icon: RefreshCw },
+  blocage:     { label: "Point de blocage",   color: "#dc2626", bg: "#fef2f2", icon: AlertTriangle },
+  decision:    { label: "Décision",           color: "#2d7a55", bg: "#f0fdf4", icon: CheckCircle2 },
+  observation: { label: "Observation",        color: "#1a5f8a", bg: "#eff6ff", icon: Lightbulb },
+};
 
-const pendingTasks = [
-  {
-    id: 1,
-    dataPoint: "ENV-04.3 - Émissions Scope 3",
-    assignedTo: "Thomas Dubois",
-    requestedBy: "Sophie Martin",
-    type: "data-missing",
-    priority: "high",
-    dueDate: "25 Jan 2026",
-    status: "pending"
-  },
-  {
-    id: 2,
-    dataPoint: "SOC-09.3 - Travailleurs handicapés",
-    assignedTo: "Pierre Durand",
-    requestedBy: "Marie Laurent",
-    type: "clarification",
-    priority: "medium",
-    dueDate: "28 Jan 2026",
-    status: "pending"
-  },
-  {
-    id: 3,
-    dataPoint: "GOV-01 - Politique anti-corruption",
-    assignedTo: "Sophie Martin",
-    requestedBy: "Thomas Dubois",
-    type: "validation",
-    priority: "high",
-    dueDate: "22 Jan 2026",
-    status: "in-progress"
-  },
-];
+const PILIER_COLOR = { E: "#2d7a55", S: "#1a5f8a", G: "#6c3483" } as const;
 
-const recentComments = [
-  {
-    id: 1,
-    dataPoint: "ENV-04.1 - Combustion gaz",
-    author: "Marie Laurent",
-    role: "auditeur",
-    content: "Pouvez-vous fournir les relevés mensuels détaillés ?",
-    timestamp: "20 Jan 2026, 14:30",
-    status: "resolved"
-  },
-  {
-    id: 2,
-    dataPoint: "SOC-01.1 - Politique RH",
-    author: "Sophie Martin",
-    role: "consultant",
-    content: "Section validée, conforme aux bonnes pratiques ESG",
-    timestamp: "19 Jan 2026, 16:45",
-    status: "resolved"
-  },
-  {
-    id: 3,
-    dataPoint: "ENV-03.2 - Consommation eau",
-    author: "Thomas Dubois",
-    role: "client",
-    content: "Données mises à jour avec les factures de décembre",
-    timestamp: "18 Jan 2026, 11:20",
-    status: "resolved"
-  },
-];
+// ─── Composant principal ──────────────────────────────────────────────────────
+export function Collaboration({ posture, dossierId }: CollaborationProps) {
+  const { getDossier } = useDossiers();
+  const { currentUser } = useUser();
+  const { getStats, getStatsByPilier, loadDossier } = useVSMEData();
 
-export function Collaboration({ posture, parcours }: CollaborationProps) {
-  const isConseil = posture === "conseil";
-  const isPreAudit = posture === "pre-audit";
-  const isAuditExterne = posture === "audit-externe";
+  const [notes, setNotes]           = useState<MissionNote[]>([]);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteCategory, setNoteCategory] = useState<MissionNote['category']>("general");
+  const [saving, setSaving]         = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const labels = {
-    title: isAuditExterne ? "Demandes d'informations" : "Collaboration",
-    subtitle: isAuditExterne 
-      ? "Gestion des demandes de preuves et échanges avec l'entité auditée"
-      : "Gestion des accès, tâches et workflows entre client, consultant et auditeur",
-    taskLabel: isAuditExterne ? "Demandes en attente" : "Tâches en attente",
-    newTaskButton: isAuditExterne ? "Nouvelle demande" : "Nouvelle tâche",
-  };
+  const dossier = getDossier(dossierId);
 
-  const activeUsers = users.filter(u => u.status === "active").length;
-  const pendingTasksCount = pendingTasks.filter(t => t.status === "pending").length;
-  const activeComments = recentComments.length;
+  // Charger notes + données VSME
+  useEffect(() => {
+    loadDossier(dossierId);
+    idbGetNotesByDossier(dossierId).then(setNotes);
+  }, [dossierId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getTaskTypeLabel = (type: string) => {
-    if (isAuditExterne) {
-      switch (type) {
-        case "data-missing": return "Données manquantes";
-        case "clarification": return "Clarification";
-        case "validation": return "Validation";
-        default: return type;
-      }
-    }
-    switch (type) {
-      case "data-missing": return "Données manquantes";
-      case "clarification": return "Clarification";
-      case "validation": return "Validation";
-      default: return type;
-    }
-  };
+  const vsmeStats   = getStats(dossierId, "B");
+  const pilierStats = getStatsByPilier(dossierId);
 
-  const getTaskTypeColor = (type: string) => {
-    switch (type) {
-      case "data-missing": return "bg-red-100 text-red-900 border-red-300";
-      case "clarification": return "bg-amber-100 text-amber-900 border-amber-300";
-      case "validation": return "bg-blue-100 text-blue-900 border-blue-300";
-      default: return "bg-gray-100 text-gray-900";
-    }
-  };
+  // ── Ajouter une note ────────────────────────────────────────────────────────
+  const handleAddNote = useCallback(async () => {
+    if (!noteContent.trim()) return;
+    setSaving(true);
+    const note: MissionNote = {
+      id: `${dossierId}::note::${Date.now()}`,
+      dossierId,
+      content: noteContent.trim(),
+      author: currentUser?.name ?? "Consultant",
+      category: noteCategory,
+      createdAt: new Date().toISOString(),
+    };
+    await idbPutNote(note);
+    const updated = await idbGetNotesByDossier(dossierId);
+    setNotes(updated);
+    setNoteContent("");
+    setSaving(false);
+  }, [dossierId, noteContent, noteCategory, currentUser]);
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return <Badge className="bg-red-600 text-white text-xs">Urgent</Badge>;
-      case "medium":
-        return <Badge className="bg-amber-500 text-white text-xs">Normal</Badge>;
-      case "low":
-        return <Badge className="bg-blue-500 text-white text-xs">Faible</Badge>;
-      default:
-        return <Badge variant="outline" className="text-xs">-</Badge>;
-    }
-  };
+  // ── Supprimer une note ──────────────────────────────────────────────────────
+  const handleDeleteNote = useCallback(async (id: string) => {
+    await idbDeleteNote(id);
+    setNotes(prev => prev.filter(n => n.id !== id));
+    setConfirmDelete(null);
+  }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Badge className="bg-amber-500 text-white text-xs"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
-      case "in-progress":
-        return <Badge className="bg-blue-500 text-white text-xs">En cours</Badge>;
-      case "resolved":
-        return <Badge className="bg-[#059669] text-white text-xs"><CheckCircle2 className="h-3 w-3 mr-1" />Résolu</Badge>;
-      default:
-        return <Badge variant="outline" className="text-xs">-</Badge>;
-    }
-  };
+  if (!dossier) return null;
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "consultant":
-        return <Badge className="bg-[#059669] text-white text-xs">Consultant</Badge>;
-      case "client":
-        return <Badge className="bg-blue-500 text-white text-xs">Client</Badge>;
-      case "auditeur":
-        return <Badge className="bg-orange-600 text-white text-xs">Auditeur</Badge>;
-      default:
-        return <Badge variant="outline" className="text-xs">{role}</Badge>;
-    }
-  };
+  const missionDays = dossier.startDate
+    ? Math.ceil((Date.now() - new Date(dossier.startDate).getTime()) / 86400000)
+    : null;
 
   return (
     <div className="space-y-6">
+      {/* ── En-tête ── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground mb-2">{labels.title}</h1>
-          <p className="text-muted-foreground">{labels.subtitle}</p>
+          <h2 className="text-xl font-semibold text-foreground mb-1">Espace Consultant</h2>
+          <p className="text-sm text-muted-foreground">
+            Notes de mission, suivi des intervenants et synthèse de l'avancement
+          </p>
         </div>
-        {(isConseil || isPreAudit) && (
-          <Button className="bg-[#0F4C3A] hover:bg-[#0A3B2E]">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Inviter un utilisateur
-          </Button>
-        )}
-        {isAuditExterne && (
-          <Badge className="bg-orange-600 text-white">
-            <Eye className="h-3 w-3 mr-1" />
-            Mode Auditeur
+        <div className="flex items-center gap-2">
+          <Badge
+            className="text-white"
+            style={{ background: posture === "conseil" ? "#059669" : posture === "pre-audit" ? "#0F4C3A" : "#dc2626" }}
+          >
+            {posture === "conseil" ? "Mode Conseil" : posture === "pre-audit" ? "Pré-Audit" : "Audit Externe"}
           </Badge>
-        )}
+        </div>
       </div>
 
-      {/* Alertes Pré-audit */}
-      {isPreAudit && pendingTasksCount > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-900">
-              <AlertTriangle className="h-5 w-5" />
-              {pendingTasksCount} tâche{pendingTasksCount > 1 ? "s" : ""} en attente avant audit
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-amber-900">
-              Ces demandes doivent être résolues avant la phase d'audit externe pour éviter les blocages.
+      {/* ── 3 KPI cards ── */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Avancement</p>
+              <TrendingUp className="h-4 w-4 text-[#2d7a55]" />
+            </div>
+            <p className="text-3xl font-bold" style={{ color: vsmeStats.pct >= 50 ? "#2d7a55" : "#9ca3af" }}>
+              {vsmeStats.pct}%
+            </p>
+            <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#2d7a55] transition-all" style={{ width: `${vsmeStats.pct}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{vsmeStats.filled}/{vsmeStats.total} indicateurs</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes de mission</p>
+              <MessageSquare className="h-4 w-4 text-[#1a5f8a]" />
+            </div>
+            <p className="text-3xl font-bold text-foreground">{notes.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {notes.length === 0 ? "Aucune note" : `Dernière : ${new Date(notes[0]?.createdAt).toLocaleDateString("fr-FR")}`}
             </p>
           </CardContent>
         </Card>
-      )}
-
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Utilisateurs actifs</p>
-                <p className="text-2xl font-semibold">{activeUsers}</p>
-              </div>
-              <div className="bg-[#E8F3F0] p-3 rounded-lg">
-                <Users className="h-5 w-5 text-[#0F4C3A]" />
-              </div>
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Durée mission</p>
+              <Clock className="h-4 w-4 text-muted-foreground" />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">{labels.taskLabel}</p>
-                <p className="text-2xl font-semibold">{pendingTasksCount}</p>
-              </div>
-              <div className={`p-3 rounded-lg ${pendingTasksCount > 0 ? "bg-amber-50" : "bg-[#E8F3F0]"}`}>
-                <Clock className={`h-5 w-5 ${pendingTasksCount > 0 ? "text-amber-600" : "text-[#0F4C3A]"}`} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Commentaires actifs</p>
-                <p className="text-2xl font-semibold">{activeComments}</p>
-              </div>
-              <div className="bg-[#E8F3F0] p-3 rounded-lg">
-                <MessageSquare className="h-5 w-5 text-[#0F4C3A]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Validations effectuées</p>
-                <p className="text-2xl font-semibold">42</p>
-              </div>
-              <div className="bg-[#E8F3F0] p-3 rounded-lg">
-                <CheckCircle2 className="h-5 w-5 text-[#0F4C3A]" />
-              </div>
-            </div>
+            <p className="text-3xl font-bold text-foreground">
+              {missionDays !== null ? `J+${missionDays}` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dossier.startDate ? `Démarré le ${new Date(dossier.startDate).toLocaleDateString("fr-FR")}` : "Date non définie"}
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Onglets principaux */}
-      <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="tasks">{labels.taskLabel}</TabsTrigger>
-          <TabsTrigger value="users">
-            {isAuditExterne ? "Interlocuteurs" : "Utilisateurs"}
+      {/* ── Tabs ── */}
+      <Tabs defaultValue="notes" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="notes">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Notes de mission
+            {notes.length > 0 && (
+              <span className="ml-1.5 bg-[#0F4C3A] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {notes.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="intervenants">
+            <Users className="h-4 w-4 mr-2" />
+            Intervenants
+          </TabsTrigger>
+          <TabsTrigger value="synthese">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Synthèse ESG
           </TabsTrigger>
         </TabsList>
 
-        {/* Tâches et demandes */}
-        <TabsContent value="tasks" className="space-y-4">
+        {/* ══ TAB NOTES ══════════════════════════════════════════════════════════ */}
+        <TabsContent value="notes" className="space-y-4">
+          {/* Formulaire d'ajout */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Tâches et demandes</CardTitle>
-                {isAuditExterne && (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300">
-                    {pendingTasksCount} {isAuditExterne ? "demande" : "tâche"}{pendingTasksCount > 1 ? "s" : ""} en attente
-                  </Badge>
-                )}
-              </div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plus className="h-4 w-4 text-[#0F4C3A]" />
+                Nouvelle note
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data point</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Assigné à</TableHead>
-                    <TableHead>Demandé par</TableHead>
-                    <TableHead>Priorité</TableHead>
-                    <TableHead>Échéance</TableHead>
-                    <TableHead>Statut</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingTasks.map((task) => (
-                    <TableRow key={task.id}>
-                      <TableCell className="font-medium">{task.dataPoint}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-xs ${getTaskTypeColor(task.type)}`}>
-                          {getTaskTypeLabel(task.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{task.assignedTo}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{task.requestedBy}</TableCell>
-                      <TableCell>{getPriorityBadge(task.priority)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{task.dueDate}</TableCell>
-                      <TableCell>{getStatusBadge(task.status)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <CardContent className="space-y-3">
+              {/* Sélecteur de catégorie */}
+              <div className="flex gap-2 flex-wrap">
+                {(Object.entries(CATEGORIES) as [MissionNote['category'], typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, cfg]) => {
+                  const Icon = cfg.icon;
+                  const active = noteCategory === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setNoteCategory(key)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border"
+                      style={{
+                        background: active ? cfg.bg : "white",
+                        color: active ? cfg.color : "#6b7280",
+                        borderColor: active ? cfg.color : "#e5e7eb",
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Textarea */}
+              <textarea
+                value={noteContent}
+                onChange={e => setNoteContent(e.target.value)}
+                placeholder="Saisissez votre note de mission…"
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                onKeyDown={e => { if (e.key === "Enter" && e.metaKey) handleAddNote(); }}
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">⌘ + Entrée pour enregistrer</p>
+                <Button
+                  onClick={handleAddNote}
+                  disabled={!noteContent.trim() || saving}
+                  className="bg-[#0F4C3A] hover:bg-[#0A3B2E] text-white"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Ajouter la note
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Commentaires récents */}
+          {/* Liste des notes */}
+          {notes.length === 0 ? (
+            <Card>
+              <CardContent className="p-10 text-center">
+                <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="font-medium text-muted-foreground">Aucune note pour cette mission</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Ajoutez des notes, relances, décisions ou points de blocage ci-dessus.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {notes.map(note => {
+                const cfg = CATEGORIES[note.category];
+                const Icon = cfg.icon;
+                return (
+                  <Card key={note.id} className="border" style={{ borderLeftWidth: 3, borderLeftColor: cfg.color }}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div
+                            className="p-1.5 rounded-md flex-shrink-0 mt-0.5"
+                            style={{ background: cfg.bg }}
+                          >
+                            <Icon className="h-3.5 w-3.5" style={{ color: cfg.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: cfg.bg, color: cfg.color }}
+                              >
+                                {cfg.label}
+                              </span>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {note.author}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(note.createdAt).toLocaleDateString("fr-FR", {
+                                  day: "2-digit", month: "short", year: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                          </div>
+                        </div>
+                        {/* Bouton supprimer */}
+                        {confirmDelete === note.id ? (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              className="text-xs text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50"
+                              onClick={() => handleDeleteNote(note.id)}
+                            >
+                              Confirmer
+                            </button>
+                            <button
+                              className="text-xs text-muted-foreground px-2 py-1 rounded hover:bg-gray-50"
+                              onClick={() => setConfirmDelete(null)}
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0 mt-1"
+                            onClick={() => setConfirmDelete(note.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ══ TAB INTERVENANTS ══════════════════════════════════════════════════ */}
+        <TabsContent value="intervenants" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Côté cabinet */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#0F4C3A]" />
+                  Cabinet / Prestataire
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[#F0FDF4]">
+                  <div className="w-9 h-9 rounded-full bg-[#0F4C3A] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {dossier.leadConsultant?.charAt(0) ?? "C"}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{dossier.leadConsultant || "Non défini"}</p>
+                    <p className="text-xs text-muted-foreground">Consultant référent</p>
+                  </div>
+                  <Badge className="ml-auto bg-[#059669] text-white text-xs">Consultant</Badge>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                  <div className="w-9 h-9 rounded-full bg-slate-400 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {dossier.providerOrg?.charAt(0) ?? "S"}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{dossier.providerOrg || "Non défini"}</p>
+                    <p className="text-xs text-muted-foreground">Organisation prestataire</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Côté client */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-[#1a5f8a]" />
+                  Client
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50">
+                  <div className="w-9 h-9 rounded-full bg-[#1a5f8a] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {dossier.clientOrg?.charAt(0) ?? "E"}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{dossier.clientOrg || dossier.name}</p>
+                    <p className="text-xs text-muted-foreground">Entreprise cliente</p>
+                  </div>
+                  <Badge className="ml-auto bg-[#1a5f8a] text-white text-xs">Client</Badge>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-dashed border-slate-200 text-center">
+                  <p className="text-xs text-muted-foreground">Contact client non renseigné</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">À compléter dans la fiche dossier</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Détails de la mission */}
           <Card>
             <CardHeader>
-              <CardTitle>Commentaires récents</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Flag className="h-4 w-4 text-[#6c3483]" />
+                Détails de la mission
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {recentComments.map((comment) => (
-                <div key={comment.id} className="p-4 border border-border rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">{comment.author}</span>
-                      {getRoleBadge(comment.role)}
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: "Type de mission", value: dossier.missionType, icon: Briefcase },
+                  { label: "Exercice fiscal", value: dossier.fiscalYear, icon: Calendar },
+                  { label: "Parcours",
+                    value: dossier.pathwayType === "CSRD_Mandatory" ? "CSRD Obligatoire" : "ESG Volontaire",
+                    icon: Flag },
+                  { label: "Statut", value: dossier.status === "active" ? "En cours" : dossier.status === "draft" ? "Brouillon" : "Complété", icon: CheckCircle2 },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">{item.label}</p>
+                      </div>
+                      <p className="font-semibold text-sm">{item.value}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">{comment.timestamp}</span>
+                  );
+                })}
+              </div>
+              {dossier.startDate && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Démarré le <strong className="text-foreground">{new Date(dossier.startDate).toLocaleDateString("fr-FR")}</strong></span>
                     </div>
+                    {dossier.endDate && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Fin prévue le <strong className="text-foreground">{new Date(dossier.endDate).toLocaleDateString("fr-FR")}</strong></span>
+                      </div>
+                    )}
+                    {missionDays !== null && (
+                      <div className="flex items-center gap-2 text-[#2d7a55] font-medium">
+                        <Clock className="h-4 w-4" />
+                        <span>J+{missionDays} jour{missionDays > 1 ? "s" : ""}</span>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">{comment.dataPoint}</p>
-                  <p className="text-sm">{comment.content}</p>
-                  {comment.status === "resolved" && (
-                    <Badge className="bg-[#059669] text-white text-xs mt-2">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Résolu
-                    </Badge>
-                  )}
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Utilisateurs */}
-        <TabsContent value="users" className="space-y-4">
+        {/* ══ TAB SYNTHÈSE ESG ══════════════════════════════════════════════════ */}
+        <TabsContent value="synthese" className="space-y-4">
+          {/* Avancement global */}
           <Card>
             <CardHeader>
-              <CardTitle>Gestion des utilisateurs</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-[#0F4C3A]" />
+                Avancement global
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
-                <Input placeholder="Rechercher un utilisateur..." className="max-w-md" />
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Utilisateur</TableHead>
-                    <TableHead>Rôle</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    <TableHead>Dernière activité</TableHead>
-                    <TableHead>Statut</TableHead>
-                    {!isAuditExterne && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">{user.email}</p>
+              {vsmeStats.total === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p className="text-sm">Aucune donnée saisie pour ce dossier</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Barre globale */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-sm font-medium">Progression totale</span>
+                      <span className="text-sm font-bold" style={{ color: vsmeStats.pct >= 80 ? "#2d7a55" : vsmeStats.pct >= 40 ? "#f59e0b" : "#9ca3af" }}>
+                        {vsmeStats.pct}% — {vsmeStats.filled}/{vsmeStats.total} données
+                      </span>
+                    </div>
+                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${vsmeStats.pct}%`,
+                          background: vsmeStats.pct >= 80 ? "#2d7a55" : vsmeStats.pct >= 40 ? "#f59e0b" : "#9ca3af",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Piliers E / S / G */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {(["E", "S", "G"] as const).map(p => {
+                      const s = pilierStats[p];
+                      const labels = { E: "Environnement", S: "Social", G: "Gouvernance" };
+                      const icons = { E: Leaf, S: Heart, G: Shield };
+                      const Icon = icons[p];
+                      return (
+                        <div key={p} className="p-4 rounded-xl border" style={{ borderColor: PILIER_COLOR[p] + "30", background: PILIER_COLOR[p] + "08" }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon className="h-4 w-4" style={{ color: PILIER_COLOR[p] }} />
+                            <span className="text-xs font-semibold" style={{ color: PILIER_COLOR[p] }}>{labels[p]}</span>
+                          </div>
+                          <p className="text-2xl font-bold mb-1" style={{ color: PILIER_COLOR[p] }}>{s.pct}%</p>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: PILIER_COLOR[p] }} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{s.filled}/{s.total}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>{getRoleBadge(user.role)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {user.permissions.map((perm, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {perm === "edit" && "Édition"}
-                              {perm === "validate" && "Validation"}
-                              {perm === "comment" && "Commentaires"}
-                              {perm === "read" && "Lecture"}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{user.lastActivity}</TableCell>
-                      <TableCell>
-                        <Badge className="bg-[#059669] text-white text-xs">Actif</Badge>
-                      </TableCell>
-                      {!isAuditExterne && (
-                        <TableCell>
-                          <Button variant="outline" size="sm">Gérer</Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      );
+                    })}
+                  </div>
+
+                  {/* Notes par catégorie */}
+                  {notes.length > 0 && (
+                    <div className="pt-3 border-t border-border">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Répartition des notes</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Object.entries(CATEGORIES) as [MissionNote['category'], typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, cfg]) => {
+                          const count = notes.filter(n => n.category === key).length;
+                          if (count === 0) return null;
+                          const Icon = cfg.icon;
+                          return (
+                            <div key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style={{ background: cfg.bg, color: cfg.color }}>
+                              <Icon className="h-3 w-3" />
+                              <span className="font-medium">{cfg.label}</span>
+                              <span className="font-bold">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Points d'attention si des blocages existent */}
+          {notes.filter(n => n.category === "blocage").length > 0 && (
+            <Card className="border-red-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  Points de blocage actifs ({notes.filter(n => n.category === "blocage").length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {notes.filter(n => n.category === "blocage").map(note => (
+                  <div key={note.id} className="flex items-start gap-2 p-3 bg-red-50 rounded-lg">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-red-800">{note.content}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Décisions prises */}
+          {notes.filter(n => n.category === "decision").length > 0 && (
+            <Card className="border-green-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Décisions prises ({notes.filter(n => n.category === "decision").length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {notes.filter(n => n.category === "decision").map(note => (
+                  <div key={note.id} className="flex items-start gap-2 p-3 bg-green-50 rounded-lg">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-green-800">{note.content}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

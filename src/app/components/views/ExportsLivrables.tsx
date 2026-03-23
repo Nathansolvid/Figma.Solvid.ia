@@ -37,7 +37,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAllIndicators } from "@/hooks/useAllIndicators";
-import { getAllAuditEntries } from "@/data/auditData";
+import { idbGetValuesByDossier } from "@/services/idbService";
+import { dataProvider } from "@/services/dataProvider";
+import { formatFileSize } from "@/utils/fileUtils";
+import { MODULE_B } from "@/data/vsme-data";
+import type { Indicator as ExportIndicator } from "@/services/exportService";
 import { ProfessionalReportsView } from "@/app/components/views/ProfessionalReportsView";
 import { 
   generateExport,
@@ -70,13 +74,81 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
   const [includeCalculations, setIncludeCalculations] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // 🆕 Charger les vraies données depuis IndexedDB
+  // Charger les indicateurs génériques (store "indicators")
   const { indicators: allIndicators = [], loading } = useAllIndicators();
+
+  // Bridge VSME → Indicator[] quand un dossierId (packId) est fourni
+  const [vsmeIndicators, setVsmeIndicators] = useState<ExportIndicator[]>([]);
+  const [loadingVsme, setLoadingVsme] = useState(false);
+
+  // Stats réelles depuis IDB (evidence + audit_logs)
+  const [evidenceCount, setEvidenceCount] = useState(0);
+  const [evidenceTotalSize, setEvidenceTotalSize] = useState(0);
+  const [auditCount, setAuditCount] = useState(0);
+
+  useEffect(() => {
+    if (!packId) return;
+    setLoadingVsme(true);
+    // Construire la map de métadonnées depuis MODULE_B
+    const meta: Record<string, { name: string; pillar: 'E' | 'S' | 'G'; unit?: string }> = {};
+    for (const section of MODULE_B) {
+      for (const dp of section.datapoints) {
+        meta[dp.code] = {
+          name: dp.intitule,
+          pillar: (dp.pilier === 'Général' ? 'G' : dp.pilier) as 'E' | 'S' | 'G',
+          unit: dp.unite,
+        };
+      }
+    }
+    idbGetValuesByDossier(packId).then(values => {
+      const indicators: ExportIndicator[] = values
+        .filter(v => v.rawValue && v.rawValue.trim() !== '' && v.statut === 'filled')
+        .map(v => ({
+          id: v.id,
+          code: v.code,
+          name: meta[v.code]?.name ?? v.code,
+          pillar: meta[v.code]?.pillar ?? 'G',
+          value: isNaN(parseFloat(v.rawValue)) ? undefined : parseFloat(v.rawValue),
+          unit: meta[v.code]?.unit,
+          status: v.statut,
+        }));
+      setVsmeIndicators(indicators);
+    }).finally(() => setLoadingVsme(false));
+  }, [packId]);
+
+  // Charger les stats réelles (evidence count + size, audit events) depuis IDB
+  useEffect(() => {
+    if (!packId) {
+      setEvidenceCount(0);
+      setEvidenceTotalSize(0);
+      setAuditCount(0);
+      return;
+    }
+    Promise.all([
+      dataProvider.store.listByIndex('evidence', 'packId', packId),
+      dataProvider.store.listByIndex('audit_logs', 'entityId', packId),
+    ]).then(([evidences, auditLogs]) => {
+      setEvidenceCount(evidences.length);
+      setEvidenceTotalSize(
+        evidences.reduce((sum: number, ev: Record<string, unknown>) => sum + ((ev.fileSize as number) || 0), 0)
+      );
+      setAuditCount(auditLogs.length);
+    }).catch(err => {
+      console.error('Failed to load export stats:', err);
+    });
+  }, [packId]);
+
+  // Source effective : données VSME si disponibles, sinon indicateurs génériques
+  // Cast nécessaire : vsmeIndicators est ExportIndicator[], allIndicators est dataProvider.Indicator[]
+  // Les deux sont structurellement compatibles avec le paramètre attendu par generateExport
+  const effectiveIndicators: ExportIndicator[] = (
+    packId && vsmeIndicators.length > 0 ? vsmeIndicators : allIndicators
+  ) as ExportIndicator[];
 
   // 🆕 Charger l'historique des exports au montage
   const [history, setHistory] = useState<ExportHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  
+
   useEffect(() => {
     loadExportHistory();
   }, []);
@@ -93,8 +165,11 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
     }
   }
 
-  // 🆕 Empty state si aucune donnée
-  if (!loading && allIndicators.length === 0) {
+  // Empty state si aucune donnée ET pas de dossier VSME sélectionné
+  // Si un packId est présent, on laisse l'accès aux rapports professionnels
+  // car ils construisent leurs propres données depuis le dossier VSME
+  const hasNoData = !loading && !loadingVsme && effectiveIndicators.length === 0;
+  if (hasNoData && !packId) {
     return (
       <div className="space-y-6">
         <div>
@@ -112,8 +187,8 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
               </div>
               <h3 className="text-xl font-semibold mb-3">Aucune donnée à exporter</h3>
               <p className="text-muted-foreground mb-6">
-                Commencez par créer un pack et renseigner des indicateurs ESG. 
-                Vous pourrez ensuite générer des exports PDF, Excel et JSON pour vos audits, 
+                Commencez par créer un pack et renseigner des indicateurs ESG.
+                Vous pourrez ensuite générer des exports PDF, Excel et JSON pour vos audits,
                 investisseurs ou partenaires.
               </p>
               <div className="mt-8 pt-8 border-t">
@@ -145,12 +220,12 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
     );
   }
 
-  // Statistiques
+  // Statistiques — données réelles depuis IDB
   const stats = {
-    totalIndicators: allIndicators.length,
-    auditEvents: getAllAuditEntries().length,
-    evidences: 10, // Mock
-    dataSize: "45.2 MB",
+    totalIndicators: effectiveIndicators.length,
+    auditEvents: auditCount,
+    evidences: evidenceCount,
+    dataSize: formatFileSize(evidenceTotalSize),
   };
 
   // 🆕 Handler avec nouveau service d'export
@@ -172,7 +247,7 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
       const exportEntry = await generateExport(
         exportFormat,
         exportScope,
-        allIndicators,
+        effectiveIndicators,
         options,
         undefined, // pack (à implémenter si nécessaire)
         (progress, message) => {
@@ -287,7 +362,7 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Preuves</p>
+                <p className="text-sm font-medium text-muted-foreground">Justificatifs</p>
                 <p className="text-2xl font-bold">{stats.evidences}</p>
               </div>
               <FileCheck className="h-8 w-8 text-green-500" />
@@ -376,7 +451,7 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
                   <SelectContent>
                     <SelectItem value="indicators">Indicateurs uniquement</SelectItem>
                     <SelectItem value="audit">Audit Trail uniquement</SelectItem>
-                    <SelectItem value="evidences">Preuves uniquement</SelectItem>
+                    <SelectItem value="evidences">Justificatifs uniquement</SelectItem>
                     <SelectItem value="complete">Export complet</SelectItem>
                   </SelectContent>
                 </Select>
@@ -431,7 +506,7 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
                       onCheckedChange={(checked) => setIncludeEvidences(checked as boolean)}
                     />
                     <Label htmlFor="evidences" className="cursor-pointer">
-                      Inclure les preuves et métadonnées
+                      Inclure les justificatifs et métadonnées
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -503,10 +578,10 @@ export function ExportsLivrables({ posture, parcours, packId }: ExportsLivrables
           <Card>
             <CardHeader>
               <CardTitle>Rapports Professionnels</CardTitle>
-              <CardDescription>Générez des rapports audit-ready pour vos investisseurs</CardDescription>
+              <CardDescription>Générez des rapports prêts pour vérification pour vos investisseurs</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProfessionalReportsView />
+              <ProfessionalReportsView dossierId={packId} />
             </CardContent>
           </Card>
         </TabsContent>

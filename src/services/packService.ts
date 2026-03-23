@@ -54,17 +54,14 @@ class PackService {
    */
   async seedTemplates(): Promise<void> {
     if (this.templatesSeeded) {
-      console.log('✅ Templates already seeded, skipping');
       return;
     }
 
     try {
-      console.log('🌱 Seeding pack templates...');
 
       const existingTemplates = await dataProvider.store.list('pack_templates');
       
       if (existingTemplates.length > 0) {
-        console.log(`✅ Found ${existingTemplates.length} existing templates, skipping seed`);
         this.templatesSeeded = true;
         return;
       }
@@ -74,11 +71,9 @@ class PackService {
       
       for (const template of templates) {
         await dataProvider.store.create('pack_templates', template);
-        console.log(`✅ Template seeded: ${template.name}`);
       }
 
       this.templatesSeeded = true;
-      console.log(`✅ ${templates.length} templates seeded successfully`);
     } catch (error) {
       console.error('❌ Failed to seed templates:', error);
       // Don't throw - app should still work
@@ -106,7 +101,6 @@ class PackService {
    */
   async createPack(options: CreatePackOptions): Promise<PackInstance> {
     try {
-      console.log('📦 Creating pack:', options);
 
       // Get template
       const template = await this.getTemplateByCode(options.templateCode);
@@ -158,7 +152,6 @@ class PackService {
 
         await dataProvider.store.create('folders', folder);
         folderIds[category] = folder.id;
-        console.log(`✅ Created folder ${category}:`, folder.id);
       }
 
       // Clone checklist items from template
@@ -196,7 +189,6 @@ class PackService {
         };
         
         await dataProvider.store.create('indicators', indicator);
-        console.log(`✅ Created indicator ${templateItem.code} in folder ${templateItem.category}`);
       }
 
       // Clone KPI requirements from template
@@ -233,7 +225,6 @@ class PackService {
             name: templateKPI.name, // Use KPI name if more specific
           };
           await dataProvider.store.update('indicators', updatedIndicator);
-          console.log(`✅ Updated indicator ${templateKPI.code} with KPI details`);
         } else {
           // KPI doesn't have a corresponding checklist item - create new indicator
           const folderId = folderIds[templateKPI.category];
@@ -254,7 +245,6 @@ class PackService {
           };
 
           await dataProvider.store.create('indicators', indicator);
-          console.log(`✅ Created KPI indicator ${templateKPI.code} in folder ${templateKPI.category}`);
         }
       }
 
@@ -282,7 +272,6 @@ class PackService {
         }
       );
 
-      console.log('✅ Pack created successfully:', pack);
       toast.success('Pack créé avec succès', {
         description: `${pack.name} (${template.name})`,
       });
@@ -586,7 +575,6 @@ class PackService {
 
       await dataProvider.store.update('pack_instances', updatedPack);
 
-      console.log(`✅ Pack score recalculated: ${completionScore}%`);
     } catch (error) {
       console.error('❌ Recalculate pack score error:', error);
     }
@@ -639,7 +627,6 @@ class PackService {
    */
   async deletePackDirect(packId: string): Promise<void> {
     try {
-      console.log('🗑️ Deleting pack:', packId);
 
       // Get pack
       const pack = await dataProvider.store.read('pack_instances', packId);
@@ -680,7 +667,6 @@ class PackService {
       // Delete pack instance
       await dataProvider.store.delete('pack_instances', packId);
 
-      console.log('✅ Pack deleted successfully');
       toast.success('Pack supprimé avec succès');
       
       // 🆕 Emit event to trigger dashboard reload
@@ -744,7 +730,6 @@ class PackService {
    */
   async getPack(packId: string): Promise<any | null> {
     try {
-      console.log('📦 packService.getPack called for:', packId);
       
       // Get pack instance
       const pack = await dataProvider.store.read('pack_instances', packId);
@@ -756,7 +741,6 @@ class PackService {
 
       // Get folders
       const folders = await dataProvider.store.listByIndex('folders', 'packId', packId);
-      console.log('📁 Folders found:', folders.length);
 
       // Get indicators for each folder
       const foldersWithIndicators = await Promise.all(
@@ -786,13 +770,6 @@ class PackService {
         ...pack,
         folders: foldersWithIndicators,
       };
-
-      console.log('✅ Pack loaded successfully:', {
-        id: pack.id,
-        name: pack.name,
-        foldersCount: foldersWithIndicators.length,
-        indicatorsCount: foldersWithIndicators.reduce((acc, f) => acc + f.indicators.length, 0),
-      });
 
       return result;
     } catch (error) {

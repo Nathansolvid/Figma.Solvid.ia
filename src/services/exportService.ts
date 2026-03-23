@@ -1,22 +1,27 @@
 import JSZip from 'jszip';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { getAllAuditEntries } from '@/data/auditData';
-import { 
-  addExportToHistory, 
-  generateExportId, 
-  calculateTotalSize, 
+import { dataProvider } from '@/services/dataProvider';
+import {
+  addExportToHistory,
+  generateExportId,
+  calculateTotalSize,
   formatFileSize,
   type ExportHistoryEntry,
-  type ExportOptions 
+  type ExportOptions
 } from './exportHistoryService';
+import { generateStandardReport } from '@/utils/professionalReports';
+import type { ReportPackData, ReportChecklistItem, ReportKPIRequirement, ReportEvidence, BrandConfig } from '@/utils/reportTypes';
+import { buildTheme, hexToRgb } from '@/utils/reportTheme';
+import { addCoverHeader, addSectionTitle, addFootersToAllPages, checkPageBreak, getPageDimensions } from '@/utils/reportHelpers';
 
 // ============================================================================
-// EXPORT SERVICE - Phase 9
+// EXPORT SERVICE - Phase 9 (refactored)
 // ============================================================================
-// Service centralisé pour générer tous types d'exports (PDF, Excel, JSON, ZIP)
+// Service centralisé pour générer tous types d'exports (PDF, JSON, CSV, ZIP).
+// La génération PDF est déléguée au moteur professionalReports.
 
-// Types
+// Types (backward compat)
 export interface Pack {
   id: string;
   name: string;
@@ -59,46 +64,47 @@ export async function generateExport(
   indicators: Indicator[],
   options: ExportOptions,
   pack?: Pack,
-  onProgress?: (progress: number, message: string) => void
+  onProgress?: (progress: number, message: string) => void,
+  brandConfig?: BrandConfig,
 ): Promise<ExportHistoryEntry> {
-  
+
   const exportId = generateExportId();
   const timestamp = new Date().toISOString();
-  
+
   onProgress?.(10, 'Préparation des données...');
-  
+
   // Prepare data based on scope
   const data = await prepareExportData(scope, indicators, options, pack);
-  
+
   // Generate files based on format
   let pdfBlob: Blob | undefined;
   let jsonBlob: Blob | undefined;
   let excelBlob: Blob | undefined;
   let zipBlob: Blob | undefined;
-  
+
   if (format === 'pdf' || format === 'all') {
     onProgress?.(30, 'Génération du PDF...');
-    pdfBlob = await generatePDFBlob(data, pack);
+    pdfBlob = await generatePDFFromPack(data, pack, brandConfig);
   }
-  
+
   if (format === 'json' || format === 'all') {
     onProgress?.(50, 'Génération du JSON...');
     jsonBlob = generateJSONBlob(data);
   }
-  
+
   if (format === 'excel' || format === 'all') {
     onProgress?.(60, 'Génération du CSV...');
     excelBlob = generateCSVBlob(data);
   }
-  
+
   if (format === 'all') {
     onProgress?.(80, 'Création du ZIP...');
-    zipBlob = await generateZIPBlob(pdfBlob, jsonBlob, excelBlob, data, pack);
+    zipBlob = await generateZIPBlob(pdfBlob, jsonBlob, excelBlob, data, pack, brandConfig);
   }
-  
+
   // Calculate total size
   const totalSize = calculateTotalSize([pdfBlob, jsonBlob, excelBlob, zipBlob]);
-  
+
   // Create history entry
   const entry: ExportHistoryEntry = {
     id: exportId,
@@ -117,12 +123,12 @@ export async function generateExport(
     excelBlob,
     zipBlob,
   };
-  
+
   // Save to IndexedDB
   await addExportToHistory(entry);
-  
+
   onProgress?.(100, 'Export terminé !');
-  
+
   return entry;
 }
 
@@ -141,16 +147,16 @@ async function prepareExportData(
     scope,
     options,
   };
-  
+
   // Indicators
   if (scope === 'indicators' || scope === 'complete') {
     let filteredIndicators = indicators;
-    
+
     // Apply category filter
     if (options.categoryFilter && options.categoryFilter !== 'all') {
       filteredIndicators = indicators.filter(i => i.pillar === options.categoryFilter);
     }
-    
+
     data.indicators = filteredIndicators.map(ind => ({
       code: ind.code,
       name: ind.name,
@@ -161,30 +167,35 @@ async function prepareExportData(
       status: ind.status || 'DRAFT',
     }));
   }
-  
+
   // Audit Trail
   if ((scope === 'audit' || scope === 'complete') && options.includeAuditTrail) {
-    data.auditTrail = getAllAuditEntries();
+    const auditLogs = await dataProvider.store.list('audit_logs');
+    data.auditTrail = auditLogs.sort((a: any, b: any) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
   }
-  
+
   // Evidences (si pack fourni)
   if ((scope === 'evidences' || scope === 'complete') && options.includeEvidences && pack?.evidences) {
-    data.evidences = pack.evidences.map(ev => ({
+    data.evidences = pack.evidences.map((ev: any) => ({
       fileName: ev.file_name,
       fileType: ev.file_type,
       fileSize: formatFileSize(ev.file_size),
+      rawFileSize: ev.file_size,
       linkedIndicators: ev.linked_indicators || [],
       period: ev.period,
       uploadedBy: ev.uploaded_by,
       createdAt: ev.created_at,
     }));
   }
-  
+
   // Pack metadata (si fourni)
   if (pack) {
     data.pack = {
       id: pack.id,
       name: pack.name,
+      templateCode: pack.templateCode,
       templateName: pack.templateName,
       status: pack.status,
       completionScore: pack.completionScore,
@@ -196,150 +207,164 @@ async function prepareExportData(
       evidencesCount: pack.evidences?.length || 0,
     };
   }
-  
+
   return data;
 }
 
 // ============================================================================
-// PDF GENERATION
+// PDF GENERATION (déléguée à professionalReports)
 // ============================================================================
 
-async function generatePDFBlob(data: any, pack?: Pack): Promise<Blob> {
+/**
+ * Génère un PDF via le moteur de rapport standard.
+ * Convertit les données d'export en ReportPackData si un pack est disponible,
+ * sinon génère un rapport simplifié avec les indicateurs bruts.
+ */
+async function generatePDFFromPack(
+  data: any,
+  pack?: Pack,
+  brandConfig?: BrandConfig,
+): Promise<Blob> {
+  // Si on a un pack complet, utiliser le moteur de rapport professionnel
+  if (pack) {
+    const reportData: ReportPackData = {
+      pack: {
+        id: pack.id,
+        name: pack.name,
+        templateCode: pack.templateCode,
+        templateName: pack.templateName,
+        status: pack.status,
+        completionScore: pack.completionScore,
+        owner: pack.owner,
+        createdAt: pack.createdAt,
+        updatedAt: pack.updatedAt,
+      },
+      checklistItems: (pack.checklistItems || []).map((i: any): ReportChecklistItem => ({
+        id: i.id || '',
+        code: i.code || '',
+        label: i.label || '',
+        category: i.category || 'E',
+        requirementLevel: i.requirementLevel || i.requirement_level || 'MANDATORY',
+        status: i.status || 'MISSING',
+        description: i.description,
+        comment: i.comment,
+      })),
+      kpiRequirements: (pack.kpiRequirements || []).map((k: any): ReportKPIRequirement => ({
+        id: k.id || '',
+        code: k.indicator_code || k.code || '',
+        name: k.indicator_name || k.name || '',
+        unit: k.unit || '',
+        category: k.category || 'E',
+        status: k.status || 'missing',
+        value: k.value,
+        period: k.period,
+        hasEvidence: k.has_evidence || k.hasEvidence || false,
+        evidenceCount: k.evidence_count || k.evidenceCount || 0,
+      })),
+      evidences: (pack.evidences || []).map((e: any): ReportEvidence => ({
+        id: e.id || '',
+        fileName: e.file_name || e.fileName || '',
+        fileType: e.file_type || e.fileType || '',
+        fileSize: e.file_size || e.fileSize || 0,
+        period: e.period,
+        uploadedAt: e.created_at || e.uploadedAt || new Date().toISOString(),
+        linkedIndicators: e.linked_indicators || e.linkedIndicators || [],
+      })),
+    };
+
+    return generateStandardReport(reportData, {
+      reportType: 'standard',
+      includeExecutiveSummary: true,
+      includeEvidence: true,
+      includeAuditTrail: false,
+      brandConfig,
+    });
+  }
+
+  // Sinon — export sans pack (indicateurs seuls) : rapport simplifié
+  return generateSimpleIndicatorsPDF(data, brandConfig);
+}
+
+/**
+ * Rapport PDF simplifié quand aucun pack n'est disponible
+ * (export d'indicateurs bruts seulement)
+ */
+async function generateSimpleIndicatorsPDF(
+  data: any,
+  brandConfig?: BrandConfig,
+): Promise<Blob> {
+  const theme = buildTheme(brandConfig);
   const doc = new jsPDF();
-  
-  const colors = {
-    primary: '#059669',
-    dark: '#0A3B2E',
-    lightGreen: '#E8F3F0',
-    gray: '#6B7280',
-    lightGray: '#F3F4F6',
-    white: '#FFFFFF',
-  };
-  
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  let yPosition = 20;
-  
-  const checkPageBreak = (requiredSpace: number) => {
-    if (yPosition + requiredSpace > pageHeight - 20) {
-      doc.addPage();
-      yPosition = 20;
-      return true;
-    }
-    return false;
-  };
-  
-  // ========== COVER PAGE ==========
-  doc.setFillColor(colors.dark);
-  doc.rect(0, 0, pageWidth, 60, 'F');
-  
-  doc.setTextColor(colors.white);
-  doc.setFontSize(12);
-  doc.text('Solvid.IA', margin, 20);
-  
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Rapport ESG Audit-Ready', margin, 40);
-  
-  yPosition = 70;
-  
-  // Title
-  doc.setTextColor(colors.dark);
-  doc.setFontSize(18);
-  doc.text(pack ? pack.name : 'Export ESG Complet', margin, yPosition);
-  yPosition += 10;
-  
-  // Metadata
+  const { margin, contentWidth } = getPageDimensions(doc, theme);
+
+  // ========== COUVERTURE ==========
+  let y = addCoverHeader(doc, theme, 'Export ESG', `Données exportées le ${new Date().toLocaleDateString('fr-FR')}`);
+
+  // Métadonnées
+  const [tr, tg, tb] = hexToRgb(theme.textColor);
+  const [mr, mg, mb] = hexToRgb(theme.mutedTextColor);
+  doc.setTextColor(mr, mg, mb);
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(colors.gray);
-  doc.text(`Date d'export: ${new Date(data.exportDate).toLocaleString('fr-FR')}`, margin, yPosition);
-  yPosition += 5;
-  doc.text(`Périmètre: ${data.scope}`, margin, yPosition);
-  yPosition += 15;
-  
-  // ========== EXECUTIVE SUMMARY ==========
-  checkPageBreak(40);
-  
-  doc.setFillColor(colors.primary);
-  doc.rect(margin, yPosition, pageWidth - 2 * margin, 8, 'F');
-  doc.setTextColor(colors.white);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('1. Résumé Exécutif', margin + 3, yPosition + 6);
-  yPosition += 15;
-  
-  doc.setTextColor(colors.dark);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  
+  doc.setFont(theme.fontFamily, 'normal');
+  doc.text(`Périmètre : ${data.scope}`, margin, y);
+  y += 6;
+  doc.text(`Date : ${new Date(data.exportDate).toLocaleString('fr-FR')}`, margin, y);
+  y += 15;
+
+  // ========== RÉSUMÉ ==========
   if (data.indicators) {
-    doc.text(`Nombre total d'indicateurs: ${data.indicators.length}`, margin, yPosition);
-    yPosition += 5;
-    
+    y = addSectionTitle(doc, 'Résumé', y, theme);
+    doc.setTextColor(tr, tg, tb);
+    doc.setFontSize(10);
+    doc.setFont(theme.fontFamily, 'normal');
+
     const byCategory = {
       E: data.indicators.filter((i: any) => i.category === 'E').length,
       S: data.indicators.filter((i: any) => i.category === 'S').length,
       G: data.indicators.filter((i: any) => i.category === 'G').length,
     };
-    
-    doc.text(`  - Environnement (E): ${byCategory.E}`, margin, yPosition);
-    yPosition += 5;
-    doc.text(`  - Social (S): ${byCategory.S}`, margin, yPosition);
-    yPosition += 5;
-    doc.text(`  - Gouvernance (G): ${byCategory.G}`, margin, yPosition);
-    yPosition += 10;
+    doc.text(`Nombre total de données : ${data.indicators.length}`, margin, y); y += 6;
+    doc.text(`  Environnement (E) : ${byCategory.E}`, margin, y); y += 5;
+    doc.text(`  Social (S) : ${byCategory.S}`, margin, y); y += 5;
+    doc.text(`  Gouvernance (G) : ${byCategory.G}`, margin, y); y += 10;
+
+    if (data.auditTrail) {
+      doc.text(`Événements d'audit : ${data.auditTrail.length}`, margin, y); y += 6;
+    }
+    if (data.evidences) {
+      doc.text(`Justificatifs : ${data.evidences.length}`, margin, y); y += 6;
+    }
+    y += 5;
   }
-  
-  if (data.auditTrail) {
-    doc.text(`Événements d'audit: ${data.auditTrail.length}`, margin, yPosition);
-    yPosition += 10;
-  }
-  
-  if (data.evidences) {
-    doc.text(`Preuves jointes: ${data.evidences.length}`, margin, yPosition);
-    yPosition += 10;
-  }
-  
-  // ========== INDICATORS TABLE ==========
+
+  // ========== TABLEAU INDICATEURS ==========
   if (data.indicators && data.indicators.length > 0) {
-    checkPageBreak(40);
-    
-    doc.setFillColor(colors.primary);
-    doc.rect(margin, yPosition, pageWidth - 2 * margin, 8, 'F');
-    doc.setTextColor(colors.white);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('2. Indicateurs ESG', margin + 3, yPosition + 6);
-    yPosition += 15;
-    
+    y = checkPageBreak(doc, y, 40);
+    y = addSectionTitle(doc, 'Données ESG', y, theme);
+
+    const [pr, pg, pb] = hexToRgb(theme.primaryColor);
+
     const tableData = data.indicators.map((ind: any) => [
       ind.code,
       ind.name.substring(0, 50) + (ind.name.length > 50 ? '...' : ''),
       ind.category,
-      ind.value !== null ? `${ind.value} ${ind.unit}` : '-',
+      ind.value !== null && ind.value !== undefined ? `${ind.value} ${ind.unit}` : '-',
       ind.status || '-',
     ]);
-    
+
     autoTable(doc, {
-      startY: yPosition,
+      startY: y,
       head: [['Code', 'Indicateur', 'Cat.', 'Valeur', 'Statut']],
       body: tableData,
       theme: 'striped',
       headStyles: {
-        fillColor: colors.primary,
-        textColor: colors.white,
+        fillColor: [pr, pg, pb],
+        textColor: [255, 255, 255],
         fontSize: 9,
         fontStyle: 'bold',
       },
-      bodyStyles: {
-        fontSize: 8,
-        textColor: colors.dark,
-      },
-      alternateRowStyles: {
-        fillColor: colors.lightGray,
-      },
+      bodyStyles: { fontSize: 8, textColor: [tr, tg, tb] },
+      alternateRowStyles: { fillColor: [243, 244, 246] },
       columnStyles: {
         0: { cellWidth: 25 },
         1: { cellWidth: 70 },
@@ -349,94 +374,58 @@ async function generatePDFBlob(data: any, pack?: Pack): Promise<Blob> {
       },
       margin: { left: margin, right: margin },
     });
-    
-    yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+    y = (doc as any).lastAutoTable.finalY + 15;
   }
-  
-  // ========== AUDIT TRAIL TABLE ==========
+
+  // ========== AUDIT TRAIL ==========
   if (data.auditTrail && data.auditTrail.length > 0) {
-    checkPageBreak(40);
-    
-    doc.setFillColor(colors.primary);
-    doc.rect(margin, yPosition, pageWidth - 2 * margin, 8, 'F');
-    doc.setTextColor(colors.white);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('3. Audit Trail', margin + 3, yPosition + 6);
-    yPosition += 15;
-    
-    // Show only last 50 entries to avoid huge PDF
+    y = checkPageBreak(doc, y, 40);
+    y = addSectionTitle(doc, 'Audit Trail', y, theme);
+
+    const [pr, pg, pb] = hexToRgb(theme.primaryColor);
     const recentEntries = data.auditTrail.slice(0, 50);
-    
+
     const auditTableData = recentEntries.map((entry: any) => [
       new Date(entry.timestamp).toLocaleString('fr-FR'),
       entry.user || '-',
       entry.action || '-',
       entry.entity_type || '-',
     ]);
-    
+
     autoTable(doc, {
-      startY: yPosition,
+      startY: y,
       head: [['Date', 'Utilisateur', 'Action', 'Type']],
       body: auditTableData,
       theme: 'striped',
       headStyles: {
-        fillColor: colors.primary,
-        textColor: colors.white,
+        fillColor: [pr, pg, pb],
+        textColor: [255, 255, 255],
         fontSize: 9,
         fontStyle: 'bold',
       },
-      bodyStyles: {
-        fontSize: 7,
-        textColor: colors.dark,
-      },
-      alternateRowStyles: {
-        fillColor: colors.lightGray,
-      },
+      bodyStyles: { fontSize: 7, textColor: [tr, tg, tb] },
+      alternateRowStyles: { fillColor: [243, 244, 246] },
       margin: { left: margin, right: margin },
     });
-    
-    yPosition = (doc as any).lastAutoTable.finalY + 10;
-    
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+
     if (data.auditTrail.length > 50) {
       doc.setFontSize(8);
-      doc.setTextColor(colors.gray);
+      doc.setTextColor(mr, mg, mb);
       doc.text(
-        `Note: Affichage des 50 événements les plus récents. Total: ${data.auditTrail.length} événements.`,
+        `Note : Affichage des 50 événements les plus récents. Total : ${data.auditTrail.length} événements.`,
         margin,
-        yPosition
+        y,
       );
     }
   }
-  
-  // ========== FOOTER ON ALL PAGES ==========
-  const totalPages = (doc as any).internal.getNumberOfPages();
-  
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    
-    doc.setDrawColor(colors.gray);
-    doc.setLineWidth(0.5);
-    doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
-    
-    doc.setFontSize(8);
-    doc.setTextColor(colors.gray);
-    doc.setFont('helvetica', 'normal');
-    
-    const footerLeft = 'Solvid.IA - ESG Audit-Ready Data Room';
-    const footerCenter = `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
-    const footerRight = `Page ${i}/${totalPages}`;
-    
-    doc.text(footerLeft, margin, pageHeight - 10);
-    
-    const centerWidth = doc.getTextWidth(footerCenter);
-    doc.text(footerCenter, (pageWidth - centerWidth) / 2, pageHeight - 10);
-    
-    const rightWidth = doc.getTextWidth(footerRight);
-    doc.text(footerRight, pageWidth - margin - rightWidth, pageHeight - 10);
-  }
-  
-  return doc.output('blob');
+
+  // ========== FOOTER ==========
+  addFootersToAllPages(doc, theme, 'Export ESG');
+
+  return doc.output('blob') as unknown as Blob;
 }
 
 // ============================================================================
@@ -449,17 +438,17 @@ function generateJSONBlob(data: any): Blob {
 }
 
 // ============================================================================
-// CSV/EXCEL GENERATION
+// CSV GENERATION
 // ============================================================================
 
 function generateCSVBlob(data: any): Blob {
   let csvContent = '';
-  
+
   // ===== INDICATORS CSV =====
   if (data.indicators && data.indicators.length > 0) {
-    csvContent += 'INDICATEURS ESG\n';
+    csvContent += 'DONNÉES ESG\n';
     csvContent += 'Code,Nom,Catégorie,Valeur,Unité,Période,Statut\n';
-    
+
     data.indicators.forEach((ind: any) => {
       const row = [
         ind.code || '',
@@ -472,15 +461,15 @@ function generateCSVBlob(data: any): Blob {
       ];
       csvContent += row.join(',') + '\n';
     });
-    
+
     csvContent += '\n\n';
   }
-  
+
   // ===== AUDIT TRAIL CSV =====
   if (data.auditTrail && data.auditTrail.length > 0) {
     csvContent += 'AUDIT TRAIL\n';
     csvContent += 'Timestamp,Utilisateur,Action,Type Entité,ID Entité,Ancienne Valeur,Nouvelle Valeur,Commentaire\n';
-    
+
     data.auditTrail.forEach((entry: any) => {
       const row = [
         entry.timestamp || '',
@@ -495,7 +484,7 @@ function generateCSVBlob(data: any): Blob {
       csvContent += row.join(',') + '\n';
     });
   }
-  
+
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 }
 
@@ -508,43 +497,31 @@ async function generateZIPBlob(
   jsonBlob: Blob | undefined,
   excelBlob: Blob | undefined,
   data: any,
-  pack?: Pack
+  pack?: Pack,
+  brandConfig?: BrandConfig,
 ): Promise<Blob> {
   const zip = new JSZip();
-  
+
   const folderName = pack ? pack.name.replace(/[^a-z0-9]/gi, '_') : 'ESG_Export';
   const folder = zip.folder(folderName);
-  
+
   if (!folder) {
     throw new Error('Failed to create ZIP folder');
   }
-  
-  // Add PDF
-  if (pdfBlob) {
-    folder.file('rapport.pdf', pdfBlob);
-  }
-  
-  // Add JSON
-  if (jsonBlob) {
-    folder.file('donnees.json', jsonBlob);
-  }
-  
-  // Add CSV
-  if (excelBlob) {
-    folder.file('export.csv', excelBlob);
-  }
-  
-  // Add README
-  const readme = generateReadme(data, pack);
+
+  if (pdfBlob) folder.file('rapport.pdf', pdfBlob);
+  if (jsonBlob) folder.file('donnees.json', jsonBlob);
+  if (excelBlob) folder.file('export.csv', excelBlob);
+
+  // README avec le nom d'organisation du branding
+  const orgName = brandConfig?.organizationName || 'Solvid.IA';
+  const readme = generateReadme(data, pack, orgName);
   folder.file('README.txt', readme);
-  
-  // Generate ZIP
+
   return await zip.generateAsync({
     type: 'blob',
     compression: 'DEFLATE',
-    compressionOptions: {
-      level: 6,
-    },
+    compressionOptions: { level: 6 },
   });
 }
 
@@ -552,73 +529,73 @@ async function generateZIPBlob(
 // README GENERATION
 // ============================================================================
 
-function generateReadme(data: any, pack?: Pack): string {
+function generateReadme(data: any, pack?: Pack, orgName: string = 'Solvid.IA'): string {
   const date = new Date().toLocaleDateString('fr-FR');
   const time = new Date().toLocaleTimeString('fr-FR');
-  
+
   return `
-═══════════════════════════════════════════════════════════════
-  EXPORT ESG AUDIT-READY
-═══════════════════════════════════════════════════════════════
+${'='.repeat(63)}
+  EXPORT ESG
+${'='.repeat(63)}
 
-Organisation: Solvid.IA
-Date d'export: ${date} à ${time}
+Organisation: ${orgName}
+Date d'export: ${date} a ${time}
 ${pack ? `Pack: ${pack.name} (${pack.templateName})` : ''}
-Périmètre: ${data.scope}
+Perimetre: ${data.scope}
 
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 CONTENU DU DOSSIER
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 
-📄 rapport.pdf
+  rapport.pdf
    Rapport complet ESG avec :
-   - Résumé exécutif
-   - Indicateurs par catégorie E/S/G
+   - Resume executif avec diagrammes
+   - Donnees par categorie E/S/G
    - Audit trail
-   - Statistiques de complétude
+   - Statistiques de progression
 
-📊 export.csv
-   Données brutes au format CSV :
-   - Indicateurs ESG avec valeurs
+  export.csv
+   Donnees brutes au format CSV :
+   - Donnees ESG avec valeurs
    - Audit trail complet
    - Compatible Excel, Google Sheets, etc.
 
-📁 donnees.json
-   Données structurées au format JSON :
-   - Indicateurs avec métadonnées
+  donnees.json
+   Donnees structurees au format JSON :
+   - Donnees avec metadonnees
    - Audit trail
-   - Preuves (métadonnées)
+   - Justificatifs (metadonnees)
    - Format API-ready
 
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 STATISTIQUES
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 
-${data.indicators ? `Indicateurs: ${data.indicators.length}` : ''}
-${data.auditTrail ? `Événements d'audit: ${data.auditTrail.length}` : ''}
-${data.evidences ? `Preuves: ${data.evidences.length}` : ''}
+${data.indicators ? `Donnees: ${data.indicators.length}` : ''}
+${data.auditTrail ? `Evenements d'audit: ${data.auditTrail.length}` : ''}
+${data.evidences ? `Justificatifs: ${data.evidences.length}` : ''}
 
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 UTILISATION
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 
 1. Ouvrez rapport.pdf pour la vue d'ensemble
 2. Importez export.csv dans Excel pour analyse
-3. Utilisez donnees.json pour intégrations API
-4. Ce dossier est audit-ready et traçable
+3. Utilisez donnees.json pour integrations API
+4. Ce dossier est pret pour verification et tracable
 
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 CONTACT
-───────────────────────────────────────────────────────────────
+${'-'.repeat(63)}
 
-${pack ? `Propriétaire: ${pack.owner}` : ''}
-${pack ? `Créé le: ${new Date(pack.createdAt).toLocaleDateString('fr-FR')}` : ''}
+${pack ? `Proprietaire: ${pack.owner}` : ''}
+${pack ? `Cree le: ${new Date(pack.createdAt).toLocaleDateString('fr-FR')}` : ''}
 
-Pour toute question, contactez votre administrateur Solvid.IA.
+Pour toute question, contactez votre administrateur ${orgName}.
 
-═══════════════════════════════════════════════════════════════
-  Généré par Solvid.IA - ESG Audit-Ready Data Room
-═══════════════════════════════════════════════════════════════
+${'='.repeat(63)}
+  Genere par ${orgName} - Plateforme ESG
+${'='.repeat(63)}
 `;
 }
 
@@ -628,9 +605,9 @@ Pour toute question, contactez votre administrateur Solvid.IA.
 
 function getScopeLabel(scope: ExportScope): string {
   const labels: Record<ExportScope, string> = {
-    indicators: 'Indicateurs uniquement',
+    indicators: 'Données uniquement',
     audit: 'Audit Trail uniquement',
-    evidences: 'Preuves uniquement',
+    evidences: 'Justificatifs uniquement',
     complete: 'Export complet',
   };
   return labels[scope] || scope;

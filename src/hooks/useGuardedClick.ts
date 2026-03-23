@@ -72,7 +72,6 @@ export function useGuardedClick(
     }
 
     // Exécuter callback si autorisé
-    console.log('✅ Guarded click allowed:', action);
     callback();
   }, [action, resource, callback, currentUser, deniedMessage, onDenied, showToast]);
 }

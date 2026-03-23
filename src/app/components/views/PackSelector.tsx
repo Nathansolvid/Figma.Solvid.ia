@@ -86,10 +86,6 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
   };
 
   const handleCreatePack = async () => {
-    console.log('🚀 handleCreatePack - START (LOCAL MODE)');
-    console.log('  - selectedTemplate:', selectedTemplate);
-    console.log('  - packName:', packName);
-    console.log('  - currentUser:', currentUser);
     
     if (!selectedTemplate || !packName.trim()) {
       toast.error('Veuillez sélectionner un template et saisir un nom');
@@ -107,14 +103,6 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
     setIsCreating(true);
 
     try {
-      console.log('🚀 Creating pack with packService (LOCAL):', {
-        packName: packName.trim(),
-        templateCode: selectedTemplate.code,
-        templateName: selectedTemplate.name,
-        userId: currentUser.id,
-        organizationId: currentUser.organizationId
-      });
-      
       // Create pack using packService (LOCAL)
       const pack = await packService.createPack({
         name: packName.trim(),
@@ -124,7 +112,6 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
         ownerId: currentUser.id,
       });
       
-      console.log('✅ Pack created successfully (LOCAL):', pack);
 
       // Reload packs list
       await loadData();
@@ -135,7 +122,6 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
 
       // Callback to open pack
       if (onPackCreated) {
-        console.log('📤 Calling onPackCreated callback with packId:', pack.id);
         onPackCreated(pack.id);
       }
     } catch (error: any) {
@@ -157,7 +143,6 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
     setDeletingPackId(packId);
 
     try {
-      console.log('🗑️ Deleting pack:', packId);
       await packService.deletePackDirect(packId); // Use direct route
       
       // Reload packs list

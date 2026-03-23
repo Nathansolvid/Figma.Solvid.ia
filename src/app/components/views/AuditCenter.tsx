@@ -205,7 +205,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#0A3B2E]">Audit Center</h1>
+        <h1 className="text-2xl font-bold text-[#0A3B2E]">Centre de vérification</h1>
         <p className="text-gray-600 mt-1">
           File d'attente des packs prêts pour revue • {filteredPacks.length} pack{filteredPacks.length > 1 ? 's' : ''}
         </p>
@@ -273,7 +273,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les types</SelectItem>
-                  <SelectItem value="Donneur d'Ordre">Donneur d'Ordre</SelectItem>
+                  <SelectItem value="Donneur d'Ordre">Client principal</SelectItem>
                   <SelectItem value="Questionnaire">Questionnaire ESG</SelectItem>
                   <SelectItem value="Banque">Banque / Investisseurs</SelectItem>
                   <SelectItem value="Pré-Audit">Pré-Audit</SelectItem>
@@ -334,7 +334,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
                       {/* Completion bar */}
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-gray-600">Complétude</span>
+                          <span className="text-xs text-gray-600">Progression</span>
                           <span className="text-xs font-semibold text-[#059669]">{pack.completionScore}%</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-1.5">
@@ -356,7 +356,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
                         </span>
                         <span className="flex items-center gap-1">
                           <FolderOpen className="size-3" />
-                          {pack.evidencesCount} preuves
+                          {pack.evidencesCount} justificatifs
                         </span>
                       </div>
                     </div>

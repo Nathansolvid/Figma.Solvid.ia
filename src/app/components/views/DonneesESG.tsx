@@ -4,7 +4,7 @@
 // Vue de gestion des indicateurs ESG par piliers E/S/G
 // Repositionné : terminologie standard, onglets E/S/G, intégration Phase 6
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
@@ -30,8 +30,8 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { TransparencyModal } from "@/app/components/TransparencyModal";
-import { indicators as rawIndicators, type Indicator as RawIndicator } from "@/data/transparencyData";
-import { useAllIndicators } from "@/hooks/useAllIndicators"; // 🆕 Import real indicators hook
+import { idbGetValuesByDossier, type VSMEValue } from "@/services/idbService";
+import { MODULE_B } from "@/data/vsme-data";
 
 // Type étendu pour la vue avec valeurs mockées
 interface ViewIndicator {
@@ -47,94 +47,62 @@ interface ViewIndicator {
   required: boolean;
 }
 
-// Convertir les indicateurs de transparencyData en indicateurs de vue
-function enrichIndicatorForESGView(indicator: RawIndicator, index: number): ViewIndicator {
-  const mockValues: Record<string, number | string> = {
-    'ind-e1-co2-total': 14540,
-    'ind-e1-co2-scope1': 1240,
-    'ind-e1-co2-scope2': 830,
-    'ind-e1-co2-scope3': 4560,
-    'ind-e1-energy-total': 3570,
-    'ind-e2-pollution-water': 2400,
-    'ind-e3-water-consumption': "12 450",
-    'ind-e4-biodiversity-impact': "-",
-    'ind-e5-waste-total': "3.2",
-    'ind-e5-waste-recycling': "68%",
-    'ind-s1-workforce-total': 187,
-    'ind-s1-workforce-women': "45%",
-    'ind-s1-turnover': "78%",
-    'ind-s2-supply-chain-audits': 18,
-    'ind-s3-community-investment': 125000,
-    'ind-s4-consumer-satisfaction': "-",
-    'ind-g1-board-women': "42%",
-    'ind-g1-board-meetings': 12,
-    'ind-g2-business-ethics-trainings': 24,
-  };
-
-  const sources: string[] = [
-    "Factures eau",
-    "Contrats énergie",
-    "Registre déchets",
-    "Prestataire déchets",
-    "Estimation",
-    "BDES 2025",
-    "RH",
-    "Registre légal",
-  ];
-
-  const csrdRefs: string[] = ["ESRS E3", "ESRS E1", "ESRS E5", "ESRS E4", "ESRS S1", "ESRS S2", "ESRS G1"];
-
-  const statuses: Array<"validated" | "complete" | "required" | "missing"> = [
-    "validated",
-    "validated",
-    "complete",
-    "complete",
-    "missing",
-    "required",
-  ];
-
-  return {
-    id: indicator.id,
-    code: indicator.code,
-    name: indicator.name,
-    category: indicator.pillar as "E" | "S" | "G",
-    value: mockValues[indicator.id] || Math.round(Math.random() * 1000 + 100),
-    unit: indicator.unit,
-    source: sources[index % sources.length],
-    csrdRef: csrdRefs[index % csrdRefs.length],
-    status: statuses[index % statuses.length],
-    required: index % 3 !== 0,
-  };
-}
-
 interface DonneesESGProps {
   posture?: string;
   parcours?: string;
+  dossierId?: string;
 }
 
-export function DonneesESG({ posture, parcours }: DonneesESGProps = {}) {
+export function DonneesESG({ posture, parcours, dossierId }: DonneesESGProps = {}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndicator, setSelectedIndicator] = useState<ViewIndicator | null>(null);
+  const [vsmeValues, setVsmeValues] = useState<VSMEValue[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // 🆕 Charger les vraies données depuis IndexedDB
-  const { indicators: backendIndicators = [], loading, error } = useAllIndicators();
+  // Charger les valeurs VSME depuis IndexedDB pour le dossier sélectionné
+  useEffect(() => {
+    if (!dossierId) {
+      setVsmeValues([]);
+      return;
+    }
+    setLoading(true);
+    idbGetValuesByDossier(dossierId)
+      .then(setVsmeValues)
+      .catch(err => {
+        console.error('Failed to load VSME values:', err);
+        setVsmeValues([]);
+      })
+      .finally(() => setLoading(false));
+  }, [dossierId]);
 
-  // Mapper les indicateurs backend vers le format ViewIndicator
-  const allIndicators = useMemo(() => {
-    return backendIndicators.map((ind: any) => ({
-      id: ind.id,
-      code: ind.code,
-      name: ind.name,
-      category: ind.category as "E" | "S" | "G",
-      value: ind.value ?? "-",
-      unit: ind.unit ?? "",
-      source: ind.source ?? "Non renseigné",
-      csrdRef: ind.csrdRef ?? "-",
-      status: (ind.status === "provided" ? "validated" : 
-               ind.status === "missing" ? "missing" : "required") as "validated" | "complete" | "required" | "missing",
-      required: ind.requirementLevel === "MANDATORY",
-    }));
-  }, [backendIndicators]);
+  // Mapper MODULE_B datapoints + valeurs VSME vers ViewIndicator[]
+  const allIndicators = useMemo((): ViewIndicator[] => {
+    const valueMap = new Map<string, VSMEValue>();
+    for (const v of vsmeValues) valueMap.set(v.code, v);
+
+    const result: ViewIndicator[] = [];
+    for (const section of MODULE_B) {
+      for (const dp of section.datapoints) {
+        const pillar = dp.pilier === 'Général' ? 'G' : dp.pilier;
+        if (!['E', 'S', 'G'].includes(pillar)) continue;
+        const val = valueMap.get(dp.code);
+        const hasValue = val && val.rawValue && val.rawValue.trim() !== '';
+        result.push({
+          id: dp.code,
+          code: dp.code,
+          name: dp.intitule,
+          category: pillar as 'E' | 'S' | 'G',
+          value: hasValue ? val!.rawValue : '-',
+          unit: dp.unite ?? '',
+          source: 'Non renseigné',
+          csrdRef: dp.esrs_equivalent ?? '-',
+          status: !hasValue ? 'missing' : val!.statut === 'filled' ? 'validated' : 'required',
+          required: dp.obligatoire,
+        });
+      }
+    }
+    return result;
+  }, [vsmeValues]);
 
   // Séparer par catégorie
   const environmentalData = allIndicators.filter((i) => i.category === "E");

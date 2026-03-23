@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTemplateByName, downloadExcelTemplate } from "@/utils/excelTemplates";
+import { getWorkflowById } from "@/utils/workflowLibrary";
 
 type TemplateCategory = 'Environnement' | 'Social' | 'Gouvernance' | 'Transverse';
 
@@ -236,14 +237,65 @@ const TEMPLATE_LIBRARY: TemplateInfo[] = [
     difficulty: 'Intermédiaire',
     estimatedTime: '2 heures',
   },
+
+  // VSME — Templates consolidés EFRAG
+  {
+    id: 'vsme-environnement',
+    name: 'VSME — Pilier Environnement',
+    category: 'Environnement',
+    description: 'Template consolidé VSME couvrant énergie (B3), pollution (B4), déchets (B5), eau (B6) et biodiversité (B7)',
+    fields: ['Indicateur VSME', 'Code', 'Valeur', 'Unité', 'Année N', 'Année N-1', 'Source / Justification'],
+    workflows: ['VSME'],
+    difficulty: 'Intermédiaire',
+    estimatedTime: '3-4 heures',
+    mandatory: true,
+  },
+  {
+    id: 'vsme-social',
+    name: 'VSME — Pilier Social',
+    category: 'Social',
+    description: 'Template consolidé VSME couvrant effectifs (B8) et santé-sécurité (B9)',
+    fields: ['Indicateur VSME', 'Code', 'Valeur', 'Unité', 'Année N', 'Année N-1', 'Source / Justification'],
+    workflows: ['VSME'],
+    difficulty: 'Intermédiaire',
+    estimatedTime: '2-3 heures',
+    mandatory: true,
+  },
+  {
+    id: 'vsme-gouvernance',
+    name: 'VSME — Pilier Gouvernance',
+    category: 'Gouvernance',
+    description: 'Template consolidé VSME couvrant gouvernance (B2), conduite des affaires (B10) et chaîne de valeur (B11)',
+    fields: ['Indicateur VSME', 'Code', 'Valeur', 'Unité', 'Année N', 'Année N-1', 'Source / Justification'],
+    workflows: ['VSME'],
+    difficulty: 'Intermédiaire',
+    estimatedTime: '2-3 heures',
+    mandatory: true,
+  },
+  {
+    id: 'vsme-general',
+    name: 'VSME — Informations générales',
+    category: 'Transverse',
+    description: 'Template VSME pour les bases de la préparation (B1) : stratégie, modèle économique, matérialité',
+    fields: ['Indicateur VSME', 'Code', 'Réponse textuelle', 'Justification', 'Référence documentaire'],
+    workflows: ['VSME'],
+    difficulty: 'Débutant',
+    estimatedTime: '1-2 heures',
+  },
 ];
 
 interface BibliothequeTemplatesProps {
   onDownloadTemplate?: (templateId: string) => void;
   onNavigate?: (view: string) => void;
+  workflowId?: string | null; // 🆕 Phase 11 : filtrer par workflow actif
 }
 
-export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: BibliothequeTemplatesProps) {
+export function BibliothequeTemplates({ onDownloadTemplate, onNavigate, workflowId }: BibliothequeTemplatesProps) {
+  // 🆕 Phase 11 : résoudre le workflow actif
+  const activeWorkflow = workflowId ? getWorkflowById(workflowId) : null;
+  const workflowTemplateIds = activeWorkflow
+    ? [...activeWorkflow.templatesRequired, ...activeWorkflow.templatesOptional]
+    : null;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'Tous'>('Tous');
   const [previewTemplate, setPreviewTemplate] = useState<TemplateInfo | null>(null);
@@ -256,12 +308,13 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
     { id: 'Transverse', label: 'Transverse', icon: FileSpreadsheet, color: 'bg-orange-500' },
   ];
 
-  // Filtrage
+  // Filtrage — 🆕 Phase 11 : filtrer par workflow si actif
   const filteredTemplates = TEMPLATE_LIBRARY.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          template.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'Tous' || template.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesWorkflow = workflowTemplateIds ? workflowTemplateIds.includes(template.id) : true;
+    return matchesSearch && matchesCategory && matchesWorkflow;
   });
 
   // Stats par catégorie
@@ -272,49 +325,49 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
       : TEMPLATE_LIBRARY.filter(t => t.category === cat.id).length,
   }));
 
-  const handleDownload = (template: TemplateInfo) => {
+  const handleDownload = async (template: TemplateInfo) => {
     // Mapper l'ID vers le nom de template réel
     const templateNameMapping: { [key: string]: string } = {
-      'emissions-scope1': 'Émissions GES Scope 1 - Combustibles',
-      'emissions-scope2': 'Émissions GES Scope 2 - Électricité',
-      'emissions-scope3': 'Émissions GES Scope 3 - Achats',
-      'consommation-energie': 'Consommation d\'Énergie',
-      'consommation-eau': 'Consommation d\'Eau',
-      'dechets': 'Production de Déchets',
-      'biodiversite': 'Émissions GES', // Fallback
-      'effectifs': 'Effectifs et Données RH',
-      'formation': 'Formation et Développement',
-      'sante-securite': 'Effectifs et Données RH', // Fallback
-      'remuneration': 'Effectifs et Données RH', // Fallback
-      'dialogue-social': 'Effectifs et Données RH', // Fallback
+      'emissions-scope1':      'Émissions GES Scope 1 - Combustibles',
+      'emissions-scope2':      'Émissions GES Scope 2 - Électricité',
+      'emissions-scope3':      'Émissions GES Scope 3 - Achats',
+      'consommation-energie':  'Consommation d\'Énergie',
+      'consommation-eau':      'Consommation d\'Eau',
+      'dechets':               'Production de Déchets',
+      'biodiversite':          'Impact biodiversité',
+      'effectifs':             'Effectifs et Données RH',
+      'formation':             'Formation et Développement',
+      'sante-securite':        'Santé et sécurité au travail',
+      'remuneration':          'Rémunération et équité salariale',
+      'dialogue-social':       'Dialogue social',
       'structure-gouvernance': 'Gouvernance et Conformité',
-      'ethique-conformite': 'Gouvernance et Conformité',
-      'risques-esg': 'Gouvernance et Conformité',
-      'chaine-valeur': 'Gouvernance et Conformité',
-      'strategie-esg': 'Plan d\'Actions ESG',
-      'parties-prenantes': 'Gouvernance et Conformité',
+      'ethique-conformite':    'Gouvernance et Conformité',
+      'risques-esg':           'Gouvernance et Conformité',
+      'chaine-valeur':         'Chaîne de valeur et fournisseurs',
+      'strategie-esg':         'Plan d\'Actions ESG',
+      'parties-prenantes':     'Engagement parties prenantes',
     };
-    
+
     const templateName = templateNameMapping[template.id];
-    
+
     if (templateName) {
       const config = getTemplateByName(templateName);
       if (config) {
-        downloadExcelTemplate(config);
-        toast.success(`Template "${template.name}" téléchargé !`, {
+        await downloadExcelTemplate(config);
+        toast.success(`Modèle "${template.name}" téléchargé !`, {
           description: `Complétez-le et importez-le dans votre dossier`,
         });
       } else {
-        toast.error(`Template non trouvé`, {
-          description: `Le template "${templateName}" n'est pas disponible`,
+        toast.error(`Modèle non trouvé`, {
+          description: `Le modèle "${templateName}" n'est pas disponible`,
         });
       }
     } else {
-      toast.error(`Template non disponible`, {
+      toast.error(`Modèle non disponible`, {
         description: `Mapping manquant pour "${template.id}"`,
       });
     }
-    
+
     if (onDownloadTemplate) {
       onDownloadTemplate(template.id);
     }
@@ -332,6 +385,29 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
 
   return (
     <div className="space-y-6">
+      {/* 🆕 Phase 11 : Bannière workflow actif */}
+      {activeWorkflow && (
+        <Card className="border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white text-sm">
+                {activeWorkflow.icon}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-900">
+                  Modèles pour : {activeWorkflow.name}
+                </p>
+                <p className="text-xs text-blue-600">
+                  {activeWorkflow.templatesRequired.length} requis
+                  {activeWorkflow.templatesOptional.length > 0 && ` · ${activeWorkflow.templatesOptional.length} optionnel(s)`}
+                  {' · '}{filteredTemplates.length} modèle(s) affiché(s)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Bandeau de guidance */}
       {onNavigate && (
         <Card className="border-2 border-[#10B981] bg-gradient-to-r from-[#E8F3F0] to-white">
@@ -343,10 +419,10 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-[#0A3B2E] mb-1">
-                    Étape 3 : Télécharger, compléter et déposer vos templates
+                    Étape 3 : Télécharger, compléter et déposer vos modèles
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Téléchargez les templates Excel, remplissez-les avec vos données, puis importez-les dans votre dossier
+                    Téléchargez les modèles Excel, remplissez-les avec vos données, puis importez-les dans votre dossier
                   </p>
                 </div>
               </div>
@@ -365,7 +441,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
                   className="bg-[#10B981] hover:bg-[#059669]"
                   onClick={() => onNavigate('evidence-vault')}
                 >
-                  Étape suivante : Preuves
+                  Étape suivante : Justificatifs
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -376,9 +452,9 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
 
       {/* En-tête */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Bibliothèque de Templates</h1>
+        <h1 className="text-3xl font-bold mb-2">Bibliothèque de Modèles</h1>
         <p className="text-muted-foreground">
-          Explorez et téléchargez les {TEMPLATE_LIBRARY.length} templates Excel disponibles
+          Explorez et téléchargez les {TEMPLATE_LIBRARY.length} modèles Excel disponibles
         </p>
       </div>
 
@@ -407,7 +483,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Rechercher un template..."
+          placeholder="Rechercher un modèle..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -417,7 +493,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
       {/* Résultats */}
       <div>
         <p className="text-sm text-muted-foreground mb-4">
-          {filteredTemplates.length} template{filteredTemplates.length > 1 ? 's' : ''} trouvé{filteredTemplates.length > 1 ? 's' : ''}
+          {filteredTemplates.length} modèle{filteredTemplates.length > 1 ? 's' : ''} trouvé{filteredTemplates.length > 1 ? 's' : ''}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -437,7 +513,13 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
                         <Badge variant="outline" className="text-xs">
                           {template.category}
                         </Badge>
-                        {template.mandatory && (
+                        {activeWorkflow && activeWorkflow.templatesRequired.includes(template.id) && (
+                          <Badge className="bg-red-500 text-xs text-white">Requis</Badge>
+                        )}
+                        {activeWorkflow && activeWorkflow.templatesOptional.includes(template.id) && (
+                          <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">Optionnel</Badge>
+                        )}
+                        {!activeWorkflow && template.mandatory && (
                           <Badge className="bg-orange-500 text-xs">
                             Obligatoire
                           </Badge>
@@ -499,7 +581,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
           <Card className="border-2 border-dashed">
             <CardContent className="p-12 text-center">
               <FileSpreadsheet className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Aucun template trouvé</h3>
+              <h3 className="text-lg font-semibold mb-2">Aucun modèle trouvé</h3>
               <p className="text-muted-foreground">
                 Essayez de modifier vos critères de recherche
               </p>
@@ -564,7 +646,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
 
               {/* Workflows */}
               <div>
-                <h4 className="font-semibold mb-2">Utilisé dans les workflows :</h4>
+                <h4 className="font-semibold mb-2">Utilisé dans les parcours ESG :</h4>
                 <div className="flex flex-wrap gap-2">
                   {previewTemplate.workflows.map(wf => (
                     <Badge key={wf} variant="secondary">
@@ -583,7 +665,7 @@ export function BibliothequeTemplates({ onDownloadTemplate, onNavigate }: Biblio
                 }}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Télécharger ce template
+                Télécharger ce modèle
               </Button>
             </CardContent>
           </Card>

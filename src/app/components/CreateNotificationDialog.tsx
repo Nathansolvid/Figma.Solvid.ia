@@ -93,13 +93,6 @@ export function CreateNotificationDialog({ onSuccess }: CreateNotificationDialog
     setLoading(true);
 
     try {
-      console.log('📬 Creating notification (LOCAL):', {
-        userId,
-        type,
-        title,
-        description,
-        packId,
-      });
 
       // Create notification
       const notification = {
@@ -115,7 +108,6 @@ export function CreateNotificationDialog({ onSuccess }: CreateNotificationDialog
 
       await dataProvider.store.create('notifications', notification);
 
-      console.log('✅ Notification created (LOCAL):', notification.id);
 
       toast.success('Notification créée', {
         description: `Notification envoyée à ${users.find(u => u.id === userId)?.name}`,

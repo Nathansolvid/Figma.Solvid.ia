@@ -4,7 +4,7 @@ import App from '@/app/App'
 import '@/styles/index.css'
 
 // Initialisation
-console.log('🚀 Solvid.IA - ESG Audit-Ready Data Room - v1.0');
+console.log('🚀 Solvid.IA - Plateforme ESG - v1.0');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Badge } from "@/app/components/ui/badge";
-import { 
+import {
   Search,
   Plus,
   FolderOpen,
@@ -12,7 +12,8 @@ import {
   Building2,
   FileText,
   Landmark,
-  Shield
+  Shield,
+  PenLine,
 } from "lucide-react";
 import {
   Table,
@@ -26,6 +27,7 @@ import { GuardedAction } from "@/app/components/GuardedAction"; // 🆕 P1-2 RBA
 import { Action } from "@/permissions"; // 🆕 P1-2 RBAC
 import { EmptyState } from "@/app/components/EmptyState"; // 🆕 P1-3 Empty States
 import { useDossiers } from "@/contexts/DossierContext"; // 🆕 Import useDossiers
+import { useVSMEData } from "@/contexts/VSMEDataContext"; // 🆕 Real completeness
 
 interface Dossier {
   id: string;
@@ -55,7 +57,7 @@ const postureConfig = {
 };
 
 const packTypeConfig = {
-  "donneur-ordre": { label: "Donneur d'Ordre", icon: Building2, color: "text-blue-600" },
+  "donneur-ordre": { label: "Client principal", icon: Building2, color: "text-blue-600" },
   "questionnaire": { label: "Questionnaire", icon: FileText, color: "text-purple-600" },
   "banque": { label: "Banque", icon: Landmark, color: "text-amber-600" },
   "pre-audit": { label: "Pré-Audit", icon: Shield, color: "text-emerald-600" },
@@ -65,19 +67,22 @@ const packTypeConfig = {
 interface ListeDossiersProps {
   onCreateDossier: () => void;
   onOpenDossier: (dossierId: string) => void;
+  onSaisirDossier?: (dossierId: string) => void; // 🆕 Naviguer vers saisie-dossier
 }
 
-export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersProps) {
+export function ListeDossiers({ onCreateDossier, onOpenDossier, onSaisirDossier }: ListeDossiersProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const { dossiers: rawDossiers } = useDossiers(); // 🆕 Get dossiers from context
+  const { dossiers: rawDossiers } = useDossiers();
+  const { getStats, loadDossier } = useVSMEData(); // 🆕 Real completeness
 
-  // 🔧 Debug: Log dossiers on every render to track changes
-  console.log('🔄 ListeDossiers render - Raw dossiers count:', rawDossiers.length);
-  console.log('🔄 ListeDossiers render - Raw dossiers:', rawDossiers.map(d => ({ id: d.id, name: d.name })));
+  // 🆕 Charger les données VSME pour tous les dossiers au montage
+  useEffect(() => {
+    rawDossiers.forEach(d => loadDossier(d.id));
+  }, [rawDossiers.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 🆕 Map raw dossiers to display format (add missing fields for UI)
+  // 🔧 Map raw dossiers to display format (add missing fields for UI)
   const dossiers = rawDossiers.map(d => {
-    // 🔧 Map context status to UI status
+    // Map context status to UI status
     let uiStatus: "Draft" | "In_Progress" | "Ready_Audit" | "Under_Audit" | "Validated" | "Closed";
     switch (d.status) {
       case "draft":
@@ -93,34 +98,33 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
         uiStatus = "In_Progress";
     }
 
+    // 🆕 Vraie complétude depuis VSMEDataContext
+    const vsmeStats = getStats(d.id, 'B');
+
     return {
       ...d,
       posture: (d.missionType === "Conseil" ? "conseil" : "audit-externe") as "conseil" | "pre-audit" | "audit-externe",
-      dominantPackType: "donneur-ordre" as const, // Default, could be calculated from packType
+      dominantPackType: "donneur-ordre" as const,
       status: uiStatus,
-      completeness: 78, // Mock value for now
+      completeness: vsmeStats.pct, // 🆕 Real value (0 if not yet loaded / no data)
       createdAt: new Date(d.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }),
       fiscalYear: parseInt(d.fiscalYear)
     };
   });
 
-  // Debug: Log pour confirmer que le composant est bien rendu
-  console.log('🟢 ListeDossiers rendered with new structure');
-  console.log('📊 Dossiers count:', dossiers.length);
-
-  // Calcul des statistiques par type de pack
+  // Calcul des statistiques
   const stats = {
     active: dossiers.filter(d => d.status === "In_Progress" || d.status === "Ready_Audit").length,
     donneurOrdre: dossiers.filter(d => d.dominantPackType === "donneur-ordre").length,
     questionnaire: dossiers.filter(d => d.dominantPackType === "questionnaire").length,
     banque: dossiers.filter(d => d.dominantPackType === "banque").length,
     preAudit: dossiers.filter(d => d.dominantPackType === "pre-audit").length,
-    avgCompleteness: Math.round(
-      dossiers.reduce((acc, d) => acc + d.completeness, 0) / dossiers.length
-    ),
+    avgCompleteness: dossiers.length > 0
+      ? Math.round(dossiers.reduce((acc, d) => acc + d.completeness, 0) / dossiers.length)
+      : 0,
   };
 
-  const filteredDossiers = dossiers.filter(dossier => 
+  const filteredDossiers = dossiers.filter(dossier =>
     dossier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     dossier.clientOrg.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -131,11 +135,11 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
         <div>
           <h1 className="text-2xl font-semibold text-foreground mb-2">Dossiers clients</h1>
           <p className="text-sm text-muted-foreground">
-            Gérez vos dossiers ESG audit-ready organisés par packs opérationnels
+            Gérez vos dossiers ESG prêts pour vérification organisés par programmes
           </p>
         </div>
         <GuardedAction action={Action.CREATE_DOSSIER}>
-          <Button 
+          <Button
             className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
             onClick={onCreateDossier}
           >
@@ -160,12 +164,12 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Donneur d'Ordre</p>
+                <p className="text-sm text-muted-foreground">Client principal</p>
                 <p className="text-2xl font-semibold">{stats.donneurOrdre}</p>
               </div>
               <Building2 className="h-5 w-5 text-blue-600" />
@@ -201,7 +205,7 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Complétude moy.</p>
+                <p className="text-sm text-muted-foreground">Progression moy.</p>
                 <p className="text-2xl font-semibold">{stats.avgCompleteness}%</p>
               </div>
               <Shield className="h-5 w-5 text-emerald-600" />
@@ -216,8 +220,8 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
           <div className="flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Rechercher un dossier..." 
+              <Input
+                placeholder="Rechercher un dossier..."
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -241,7 +245,6 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
           <CardTitle>Tous les dossiers ({filteredDossiers.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* 🆕 P1-3: Empty state si aucun dossier */}
           {filteredDossiers.length === 0 ? (
             searchTerm ? (
               <div className="text-center py-12 text-muted-foreground">
@@ -277,7 +280,7 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
                   <TableHead>Type de pack</TableHead>
                   <TableHead>Posture</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead>Complétude</TableHead>
+                  <TableHead>Progression</TableHead>
                   <TableHead>Créé le</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -285,6 +288,10 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
               <TableBody>
                 {filteredDossiers.map((dossier) => {
                   const PackIcon = packTypeConfig[dossier.dominantPackType].icon;
+                  const completenessColor =
+                    dossier.completeness >= 80 ? "#2d7a55" :
+                    dossier.completeness >= 40 ? "#f59e0b" :
+                    "#9ca3af";
                   return (
                     <TableRow key={dossier.id} className="cursor-pointer hover:bg-muted/50">
                       <TableCell className="font-medium">{dossier.name}</TableCell>
@@ -307,27 +314,50 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier }: ListeDossiersP
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {/* 🆕 Vraie complétude depuis VSMEDataContext */}
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-border rounded-full h-2 overflow-hidden max-w-[80px]">
-                            <div 
-                              className="bg-[#059669] h-full"
-                              style={{ width: `${dossier.completeness}%` }}
+                            <div
+                              className="h-full transition-all duration-500"
+                              style={{
+                                width: `${dossier.completeness}%`,
+                                background: completenessColor,
+                              }}
                             />
                           </div>
-                          <span className="text-sm font-medium">{dossier.completeness}%</span>
+                          <span
+                            className="text-sm font-semibold tabular-nums"
+                            style={{ color: completenessColor }}
+                          >
+                            {dossier.completeness}%
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {dossier.createdAt}
                       </TableCell>
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => onOpenDossier(dossier.id)}
-                        >
-                          Ouvrir
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenDossier(dossier.id)}
+                          >
+                            Ouvrir
+                          </Button>
+                          {/* 🆕 Bouton saisie directe */}
+                          {onSaisirDossier && (
+                            <Button
+                              size="sm"
+                              className="text-[#0F4C3A] border-[#0F4C3A] hover:bg-[#E8F3F0] gap-1"
+                              variant="outline"
+                              onClick={() => onSaisirDossier(dossier.id)}
+                            >
+                              <PenLine className="h-3.5 w-3.5" />
+                              Saisir
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -207,7 +207,7 @@ async function generatePDFBlobInternal(
   doc.text(organizationName || 'Solvid.IA', margin, 20);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text('Rapport ESG Audit-Ready', margin, 40);
+  doc.text('Rapport ESG', margin, 40);
   
   yPosition = 70;
   
@@ -234,7 +234,7 @@ async function generatePDFBlobInternal(
   doc.setTextColor(colors.dark);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('Score de Complétude', margin + 5, yPosition + 10);
+  doc.text('Score de Progression', margin + 5, yPosition + 10);
   doc.setFontSize(20);
   doc.setTextColor(colors.primary);
   const scoreText = `${pack.completionScore}%`;
@@ -252,7 +252,7 @@ async function generatePDFBlobInternal(
   doc.setFontSize(10);
   doc.setTextColor(colors.gray);
   doc.text(
-    `${mandatoryCompleted}/${mandatoryItems.length} items obligatoires • ${pack.kpiRequirements.length} KPIs • ${pack.evidences?.length || 0} preuves`,
+    `${mandatoryCompleted}/${mandatoryItems.length} items obligatoires • ${pack.kpiRequirements.length} Chiffres clés de performance • ${pack.evidences?.length || 0} justificatifs`,
     margin,
     yPosition
   );
@@ -275,7 +275,7 @@ function generateReadme(pack: Pack, organizationName?: string): string {
   
   return `
 ═══════════════════════════════════════════════════════════════
-  EXPORT ESG AUDIT-READY - ${pack.name}
+  EXPORT ESG - ${pack.name}
 ═══════════════════════════════════════════════════════════════
 
 Organisation: ${organizationName || 'Solvid.IA'}
@@ -283,7 +283,7 @@ Date d'export: ${date} à ${time}
 Pack ID: ${pack.id}
 Type: ${pack.templateName}
 Status: ${pack.status}
-Score de complétude: ${pack.completionScore}%
+Score de progression: ${pack.completionScore}%
 
 ───────────────────────────────────────────────────────────────
 CONTENU DU DOSSIER
@@ -292,15 +292,15 @@ CONTENU DU DOSSIER
 📄 rapport.pdf
    Rapport complet du pack ESG avec :
    - Checklist de conformité (items obligatoires et recommandés)
-   - Indicateurs de performance (KPIs)
-   - Liste des preuves jointes
-   - Statistiques de complétude
+   - Chiffres clés de performance
+   - Liste des justificatifs joints
+   - Statistiques de progression
 
 📁 preuves/
-   Tous les fichiers de preuves associés au pack :
+   Tous les justificatifs associés au pack :
    - Nombre de fichiers: ${pack.evidences?.length || 0}
    - Types: PDF, Excel, Images, CSV, etc.
-   - Chaque preuve est liée à un ou plusieurs indicateurs
+   - Chaque justificatif est lié à un ou plusieurs indicateurs
 
 ───────────────────────────────────────────────────────────────
 STATISTIQUES
@@ -310,16 +310,16 @@ Items de checklist: ${pack.checklistItems.length}
   - Obligatoires: ${pack.checklistItems.filter(i => i.requirement_level === 'MANDATORY').length}
   - Recommandés: ${pack.checklistItems.filter(i => i.requirement_level === 'RECOMMENDED').length}
 
-Indicateurs (KPIs): ${pack.kpiRequirements.length}
+Chiffres clés de performance: ${pack.kpiRequirements.length}
 
-Preuves: ${pack.evidences?.length || 0} fichiers
+Justificatifs: ${pack.evidences?.length || 0} fichiers
 
 ───────────────────────────────────────────────────────────────
 UTILISATION
 ───────────────────────────────────────────────────────────────
 
 1. Ouvrez rapport.pdf pour voir le rapport complet
-2. Consultez le dossier preuves/ pour accéder aux fichiers justificatifs
+2. Consultez le dossier preuves/ pour accéder aux justificatifs
 3. Ce dossier peut être partagé avec un auditeur externe
 4. Tous les fichiers sont horodatés et traçables
 
@@ -334,7 +334,7 @@ Dernière modification: ${new Date(pack.updatedAt).toLocaleDateString('fr-FR')}
 Pour toute question, contactez votre administrateur Solvid.IA.
 
 ═══════════════════════════════════════════════════════════════
-  Généré par Solvid.IA - ESG Audit-Ready Data Room
+  Généré par Solvid.IA - Plateforme ESG
 ═══════════════════════════════════════════════════════════════
 `;
 }

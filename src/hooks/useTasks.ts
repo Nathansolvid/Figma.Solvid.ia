@@ -42,6 +42,7 @@ export function useTasks(packId?: string) {
     try {
       const newTask: Task = {
         id: uuidv4(),
+        packId,                    // ← injecté depuis le paramètre du hook
         createdBy: 'current-user', // TODO: Récupérer depuis le contexte auth
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

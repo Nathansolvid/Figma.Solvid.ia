@@ -53,13 +53,17 @@ import { useTasks } from "@/hooks/useTasks";
 import { type Task } from "@/services/dataProvider";
 import { downloadExcelTemplate, getAllTemplates } from "@/utils/excelTemplates";
 import { toast } from "sonner";
+import { getWorkflowById } from "@/utils/workflowLibrary";
 
 interface ChecklistWorkflowProps {
   posture?: string;
   packId?: string;
+  workflowId?: string | null; // 🆕 Phase 11 : contexte workflow
 }
 
-export function ChecklistWorkflow({ posture, packId }: ChecklistWorkflowProps) {
+export function ChecklistWorkflow({ posture, packId, workflowId }: ChecklistWorkflowProps) {
+  // 🆕 Phase 11 : résoudre le workflow actif
+  const activeWorkflow = workflowId ? getWorkflowById(workflowId) : null;
   const { tasks, loading, createTask, updateTask, deleteTask } = useTasks(packId);
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -90,9 +94,23 @@ export function ChecklistWorkflow({ posture, packId }: ChecklistWorkflowProps) {
   if (!loading && tasks.length === 0) {
     return (
       <div className="space-y-6">
+        {/* 🆕 Phase 11 : bannière workflow dans l'état vide */}
+        {activeWorkflow && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+            <span className="text-2xl">{activeWorkflow.icon}</span>
+            <div>
+              <p className="font-semibold text-blue-900">
+                Checklist pour : {activeWorkflow.name}
+              </p>
+              <p className="text-sm text-blue-700">
+                {activeWorkflow.category} · {activeWorkflow.estimatedDuration}
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Checklist & Workflow</h1>
+            <h1 className="text-3xl font-bold mb-2">Checklist & Parcours</h1>
             <p className="text-muted-foreground">
               Suivi des tâches de collecte et consolidation des données ESG - Approche Excel-first
             </p>
@@ -108,7 +126,7 @@ export function ChecklistWorkflow({ posture, packId }: ChecklistWorkflowProps) {
               <h3 className="text-xl font-semibold mb-3">Aucune tâche créée</h3>
               <p className="text-muted-foreground mb-6">
                 Organisez votre collecte de données ESG en créant des tâches avec templates Excel, 
-                assignations et suivi de validation. Idéal pour piloter votre workflow avec vos équipes.
+                assignations et suivi de validation. Idéal pour piloter votre parcours avec vos équipes.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => {
@@ -162,7 +180,23 @@ export function ChecklistWorkflow({ posture, packId }: ChecklistWorkflowProps) {
           </CardContent>
         </Card>
 
-        {/* Dialog templates Excel */}
+        {/* Dialogs */}
+        <TaskDialog
+          open={taskDialogOpen}
+          onOpenChange={setTaskDialogOpen}
+          task={editingTask}
+          formData={taskForm}
+          onFormChange={setTaskForm}
+          onSave={async () => {
+            try {
+              await createTask(taskForm);
+              toast.success("Tâche créée avec succès");
+              setTaskDialogOpen(false);
+            } catch (error) {
+              toast.error("Erreur lors de la création de la tâche");
+            }
+          }}
+        />
         <TemplatesDialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen} />
       </div>
     );
@@ -252,10 +286,27 @@ export function ChecklistWorkflow({ posture, packId }: ChecklistWorkflowProps) {
 
   return (
     <div className="space-y-6">
+      {/* 🆕 Phase 11 : Bannière workflow actif */}
+      {activeWorkflow && (
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3 border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white">
+          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+            {activeWorkflow.icon}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-blue-900">
+              Checklist pour : {activeWorkflow.name}
+            </p>
+            <p className="text-xs text-blue-600">
+              {activeWorkflow.category} · {activeWorkflow.estimatedDuration}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Checklist & Workflow</h1>
+          <h1 className="text-3xl font-bold mb-2">Checklist & Parcours</h1>
           <p className="text-muted-foreground">
             Suivi des tâches de collecte et consolidation des données ESG - Approche Excel-first
           </p>
@@ -713,8 +764,8 @@ interface TemplatesDialogProps {
 function TemplatesDialog({ open, onOpenChange }: TemplatesDialogProps) {
   const templates = getAllTemplates();
 
-  const handleDownload = (template: any) => {
-    downloadExcelTemplate(template);
+  const handleDownload = async (template: any) => {
+    await downloadExcelTemplate(template).catch(console.error);
     toast.success(`Template "${template.templateName}" téléchargé`);
   };
 

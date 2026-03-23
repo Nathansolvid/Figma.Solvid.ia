@@ -18,7 +18,6 @@ export function usePrefetch() {
   // Prefetch a single pack on hover
   const prefetchPack = useCallback(
     async (packId: string) => {
-      console.log('🔮 Prefetching pack:', packId);
       
       await queryClient.prefetchQuery({
         queryKey: packKeys.full(packId),
@@ -34,7 +33,6 @@ export function usePrefetch() {
 
   // Prefetch packs list (useful before navigation to dashboard)
   const prefetchPacksList = useCallback(async () => {
-    console.log('🔮 Prefetching packs list...');
     
     await queryClient.prefetchQuery({
       queryKey: packKeys.lists(),
@@ -49,7 +47,6 @@ export function usePrefetch() {
   // Prefetch multiple packs (useful for list views)
   const prefetchMultiplePacks = useCallback(
     async (packIds: string[]) => {
-      console.log('🔮 Prefetching multiple packs:', packIds.length);
       
       await Promise.all(
         packIds.map(id => prefetchPack(id))

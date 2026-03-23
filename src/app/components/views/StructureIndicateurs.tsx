@@ -130,19 +130,19 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
 
   const handleImportExcel = () => {
     toast.info("Import Excel", {
-      description: "Sélectionnez votre fichier Excel pour mapper automatiquement les indicateurs"
+      description: "Sélectionnez votre fichier Excel pour mapper automatiquement les données"
     });
   };
 
   const handleExportTemplate = () => {
     toast.success("Template téléchargé", {
-      description: "Template Excel avec la structure complète des indicateurs"
+      description: "Template Excel avec la structure complète des données"
     });
   };
 
   const handleAddCustomIndicator = () => {
-    toast.info("Indicateur personnalisé", {
-      description: "Ajout d'un indicateur spécifique à votre activité"
+    toast.info("Donnée personnalisée", {
+      description: "Ajout d'une donnée spécifique à votre activité"
     });
   };
 
@@ -157,10 +157,10 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-foreground mb-2">
-              Structure des indicateurs
+              Structure des données
             </h1>
             <p className="text-muted-foreground">
-              Organisez vos indicateurs ESG par catégories et thématiques métier
+              Organisez vos données ESG par catégories et thématiques métier
             </p>
           </div>
         </div>
@@ -174,11 +174,11 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
               </div>
               <div>
                 <h3 className="text-xl font-semibold mb-2">
-                  Aucune structure d'indicateurs définie
+                  Aucune structure de données définie
                 </h3>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Importez votre structure depuis Excel ou sélectionnez un pack thématique pour définir 
-                  les indicateurs à collecter.
+                  Importez votre structure depuis Excel ou sélectionnez un programme thématique pour définir
+                  les données à collecter.
                 </p>
               </div>
 
@@ -197,7 +197,7 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
                   </Button>
                   <Button variant="outline">
                     <Package className="h-4 w-4 mr-2" />
-                    Choisir un pack
+                    Choisir un programme
                   </Button>
                 </div>
               )}
@@ -213,14 +213,14 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold mb-2">Utilisez les packs thématiques</h3>
+                <h3 className="font-semibold mb-2">Utilisez les programmes thématiques</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Les packs contiennent des structures d'indicateurs pré-configurées selon votre secteur 
-                  (Donneur d'Ordre, Banque, Questionnaire, etc.).
+                  Les programmes contiennent des structures de données pré-configurées selon votre secteur
+                  (Client principal, Banque, Questionnaire, etc.).
                 </p>
                 <Button variant="outline" size="sm">
                   <Package className="h-4 w-4 mr-2" />
-                  Explorer les packs disponibles
+                  Explorer les programmes disponibles
                 </Button>
               </div>
             </div>
@@ -246,10 +246,10 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-foreground mb-2">
-            Structure des indicateurs
+            Structure des données
           </h1>
           <p className="text-muted-foreground">
-            Organisez vos indicateurs ESG par catégories et thématiques métier
+            Organisez vos données ESG par catégories et thématiques métier
           </p>
         </div>
         {isConseil && (
@@ -263,7 +263,7 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
               onClick={handleAddCustomIndicator}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Indicateur personnalisé
+              Donnée personnalisée
             </Button>
           </div>
         )}
@@ -281,7 +281,7 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Indicateurs totaux</p>
+                <p className="text-sm text-muted-foreground">Données totales</p>
                 <p className="text-3xl font-semibold">{totalIndicators}</p>
               </div>
               <div className="bg-[#E8F3F0] p-3 rounded-lg">
@@ -328,7 +328,7 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher un indicateur..."
+                placeholder="Rechercher une donnée..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -392,11 +392,11 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
                         </div>
                         <CardTitle>{theme.name}</CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {theme.indicators} indicateurs • Sources: {theme.sources.join(", ")}
+                          {theme.indicators} données • Sources: {theme.sources.join(", ")}
                         </p>
                       </div>
                       <Button variant="outline" size="sm">
-                        Voir les indicateurs
+                        Voir les données
                       </Button>
                     </div>
                   </CardHeader>
@@ -439,7 +439,7 @@ export function StructureIndicateurs({ posture = "conseil", dossierId }: Structu
             <div className="flex-1">
               <h3 className="font-semibold mb-2">Import Excel automatique</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                Importez vos données depuis Excel avec mapping automatique vers les indicateurs. 
+                Importez vos données depuis Excel avec mapping automatique vers les données. 
                 Le système reconnaît les structures standard (BDES, GRI, bilan GES, etc.).
               </p>
               <Button 

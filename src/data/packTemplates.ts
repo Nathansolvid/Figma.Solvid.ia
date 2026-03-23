@@ -5,7 +5,7 @@ import { PackTemplate, PackType } from "@/types/packs";
 export const PACK_TEMPLATES: Record<PackType, PackTemplate> = {
   "donneur-ordre": {
     id: "donneur-ordre",
-    name: "Pack Donneur d'Ordre",
+    name: "Programme Client Principal",
     description: "Réponse aux demandes d'un grand groupe soumis à la CSRD. Focus indicateurs E/S/G clés + preuves documentaires.",
     icon: "🏢",
     color: "bg-blue-600",
@@ -174,7 +174,7 @@ export const PACK_TEMPLATES: Record<PackType, PackTemplate> = {
 
   "questionnaire-esg": {
     id: "questionnaire-esg",
-    name: "Pack Questionnaire ESG",
+    name: "Programme Questionnaire ESG",
     description: "PME/ETI répondant à EcoVadis, achats responsables, appels d'offres. Checklist E/S/G simplifiée (≈15-20 indicateurs).",
     icon: "📝",
     color: "bg-green-600",
@@ -243,7 +243,7 @@ export const PACK_TEMPLATES: Record<PackType, PackTemplate> = {
 
   "banque": {
     id: "banque",
-    name: "Pack Due Diligence Financière",
+    name: "Programme Banque & Investisseurs",
     description: "Demande banque/investisseur (prêt vert, levée de fonds). Focus carbone + taxonomie verte + gouvernance.",
     icon: "🏦",
     color: "bg-purple-600",
@@ -310,7 +310,7 @@ export const PACK_TEMPLATES: Record<PackType, PackTemplate> = {
 
   "audit-ready": {
     id: "audit-ready",
-    name: "Pack Audit-Ready Full ESG",
+    name: "Programme Vérification Complète ESG",
     description: "Pré-audit interne ou audit externe. Checklist E/S/G complète (≈50 indicateurs) + preuves exhaustives + audit trail.",
     icon: "🔍",
     color: "bg-orange-600",
@@ -396,7 +396,7 @@ export function getPackTemplate(packType: PackType): PackTemplate {
   return PACK_TEMPLATES[packType];
 }
 
-// Helper pour calculer % complétude
+// Helper pour calculer % progression
 export function calculateCompletionPercentage(
   items: ChecklistItem[]
 ): number {

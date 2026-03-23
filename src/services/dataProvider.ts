@@ -11,6 +11,7 @@
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
+import { syncEngine } from './syncEngine';
 
 // ==================== TYPES ====================
 
@@ -22,6 +23,9 @@ export interface User {
   organizationId: string;
   createdAt: string;
   avatar?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  consentCGU?: string;   // ISO timestamp — RGPD Phase 1
+  consentAI?: string;    // ISO timestamp — RGPD Phase 1
 }
 
 export interface Organization {
@@ -31,6 +35,10 @@ export interface Organization {
   size?: string;
   createdAt: string;
   logo?: string;
+  // Brand config pour rapports PDF
+  brandPrimaryColor?: string;    // hex, défaut '#059669'
+  brandSecondaryColor?: string;  // hex, défaut '#0A3B2E'
+  brandLogoBase64?: string;      // base64 PNG/JPEG pour PDF (max 500KB)
 }
 
 export interface Session {
@@ -38,8 +46,9 @@ export interface Session {
   role: string;
   organizationId: string;
   email: string;
-  tokenFake: string;
+  token: string;
   createdAt: string;
+  expiresAt: string;
 }
 
 export interface Dossier {
@@ -195,6 +204,7 @@ export interface Indicator {
 export interface Evidence {
   id: string;
   packId: string;
+  workflowId?: string; // 🆕 Phase 10 : scope au workflow (indépendance)
   indicatorId?: string; // 🆕 Add indicatorId for evidence-indicator link
   fileName: string;
   fileType: string;
@@ -206,6 +216,9 @@ export interface Evidence {
   uploadedBy: string;
   uploadedAt: string;
   linkedIndicators: string[]; // Array of KPI codes
+  completionType?: 'file' | 'value' | 'cross_ref'; // 🆕 Type de complétion
+  justification?: string; // 🆕 Texte justificatif optionnel
+  updatedAt?: string; // 🆕 Date de dernière MAJ
 }
 
 export interface EvidenceLink {
@@ -288,7 +301,7 @@ interface SolvidDBSchema extends DBSchema {
   data_rows: { key: string; value: DataRow; indexes: { importId: string; packId: string; indicatorCode: string } };
   folders: { key: string; value: Folder; indexes: { packId: string } };
   indicators: { key: string; value: Indicator; indexes: { folderId: string; packId: string } };
-  evidence: { key: string; value: Evidence; indexes: { packId: string; indicatorId: string } }; // 🆕 Add indicatorId index
+  evidence: { key: string; value: Evidence; indexes: { packId: string; indicatorId: string; workflowId: string } }; // 🆕 + workflowId index
   evidence_links: { key: string; value: EvidenceLink; indexes: { evidenceId: string; kpiId: string } };
   audit_logs: { key: string; value: AuditLog; indexes: { entityType: string; entityId: string; timestamp: string } };
   tasks: { key: string; value: Task; indexes: { assignedTo: string; packId: string } };
@@ -296,18 +309,66 @@ interface SolvidDBSchema extends DBSchema {
   export_history: { key: string; value: ExportHistory; indexes: { packId: string } };
 }
 
+// ==================== SYNC HELPERS ====================
+
+/** IDB stores that should NOT be synced to Supabase */
+const LOCAL_ONLY_STORES = new Set<string>(['sessions']);
+
+/** Map IDB store name → Supabase table name (when different) */
+const STORE_TO_TABLE: Record<string, string> = {
+  users: 'profiles',
+};
+
+/** Convert camelCase key to snake_case */
+function camelToSnake(str: string): string {
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+/** Convert all keys of an object from camelCase to snake_case */
+function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[camelToSnake(key)] = value;
+  }
+  return result;
+}
+
+/** Build the Supabase payload from an IDB record, stripping local-only fields */
+function buildCloudPayload(store: string, data: Record<string, unknown>): Record<string, unknown> {
+  const snaked = toSnakeCase(data);
+  // Remove IDB-only blob fields that don't exist in Supabase
+  delete snaked['file_blob_base64'];
+  delete snaked['blob_base64'];
+  return snaked;
+}
+
 // ==================== LOCAL PROVIDER (IndexedDB) ====================
 
 class LocalProvider {
   private db: IDBPDatabase<SolvidDBSchema> | null = null;
+  private initAttempted = false;
+  private initPromise: Promise<void> | null = null;
   private readonly DB_NAME = 'solvid_local_v1';
-  private readonly DB_VERSION = 3; // 🆕 Increment version to add indicatorId index
+  private readonly DB_VERSION = 4; // 🆕 v4: ajout index workflowId sur evidence
 
   async init(): Promise<void> {
+    // Si déjà tenté (succès ou échec), ne pas re-tenter
+    if (this.initAttempted) return;
+    // Si en cours, attendre la même promise
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = this._doInit();
+    return this.initPromise;
+  }
+
+  private async _doInit(): Promise<void> {
     try {
-      this.db = await openDB<SolvidDBSchema>(this.DB_NAME, this.DB_VERSION, {
+      // Timeout de sécurité : si openDB bloque (connexion résiduelle), on skip après 3s
+      const timeoutMs = 3000;
+      const openPromise = openDB<SolvidDBSchema>(this.DB_NAME, this.DB_VERSION, {
+        blocked() {
+          console.warn('⚠️ IndexedDB upgrade bloquée par une connexion existante — fermeture…');
+        },
         upgrade(db, oldVersion, newVersion, transaction) {
-          console.log('🔧 Upgrading IndexedDB:', { oldVersion, newVersion });
 
           // Users
           if (!db.objectStoreNames.contains('users')) {
@@ -386,7 +447,16 @@ class LocalProvider {
           if (!db.objectStoreNames.contains('evidence')) {
             const evidenceStore = db.createObjectStore('evidence', { keyPath: 'id' });
             evidenceStore.createIndex('packId', 'packId');
-            evidenceStore.createIndex('indicatorId', 'indicatorId'); // 🆕 Add indicatorId index
+            evidenceStore.createIndex('indicatorId', 'indicatorId');
+            evidenceStore.createIndex('workflowId', 'workflowId'); // 🆕 v4
+          }
+
+          // Migration v3→v4 : ajouter index workflowId si store evidence existe déjà
+          if (oldVersion < 4 && db.objectStoreNames.contains('evidence')) {
+            const evidenceStore = transaction.objectStore('evidence');
+            if (!evidenceStore.indexNames.contains('workflowId')) {
+              evidenceStore.createIndex('workflowId', 'workflowId');
+            }
           }
 
           // Evidence Links
@@ -426,11 +496,20 @@ class LocalProvider {
         },
       });
 
-      console.log('✅ IndexedDB initialized:', this.DB_NAME);
+      // Timeout race : si openDB ne résout pas en 5s, on continue sans DB
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('IndexedDB open timeout')), timeoutMs)
+      );
+
+      this.db = await Promise.race([openPromise, timeoutPromise]);
     } catch (error) {
       console.error('❌ IndexedDB initialization failed:', error);
       console.warn('⚠️ Fallback to localStorage (less performant)');
+      this.db = null;
       // Fallback handled in each method
+    } finally {
+      this.initAttempted = true;
+      this.initPromise = null;
     }
   }
 
@@ -441,19 +520,26 @@ class LocalProvider {
     data: SolvidDBSchema[T]['value']
   ): Promise<SolvidDBSchema[T]['value']> {
     if (!this.db) await this.init();
-    
+
     try {
       if (this.db) {
         await this.db.add(store, data as any);
-        console.log(`✅ Created in ${store}:`, data);
-        return data;
+      } else {
+        this.createInLocalStorage(store, data);
       }
     } catch (error) {
       console.error(`❌ Create failed in ${store}:`, error);
+      this.createInLocalStorage(store, data);
     }
 
-    // Fallback to localStorage
-    return this.createInLocalStorage(store, data);
+    // Write-through to Supabase (fire-and-forget)
+    if (!LOCAL_ONLY_STORES.has(store as string)) {
+      const table = STORE_TO_TABLE[store as string] || (store as string);
+      const payload = buildCloudPayload(store as string, data as Record<string, unknown>);
+      syncEngine.syncToCloud(table, 'INSERT', payload).catch(() => {});
+    }
+
+    return data;
   }
 
   async read<T extends keyof SolvidDBSchema>(
@@ -484,15 +570,22 @@ class LocalProvider {
     try {
       if (this.db) {
         await this.db.put(store, data as any);
-        console.log(`✅ Updated in ${store}:`, data);
-        return data;
+      } else {
+        this.updateInLocalStorage(store, data);
       }
     } catch (error) {
       console.error(`❌ Update failed in ${store}:`, error);
+      this.updateInLocalStorage(store, data);
     }
 
-    // Fallback to localStorage
-    return this.updateInLocalStorage(store, data);
+    // Write-through to Supabase (fire-and-forget)
+    if (!LOCAL_ONLY_STORES.has(store as string)) {
+      const table = STORE_TO_TABLE[store as string] || (store as string);
+      const payload = buildCloudPayload(store as string, data as Record<string, unknown>);
+      syncEngine.syncToCloud(table, 'UPDATE', payload).catch(() => {});
+    }
+
+    return data;
   }
 
   async delete<T extends keyof SolvidDBSchema>(
@@ -504,15 +597,19 @@ class LocalProvider {
     try {
       if (this.db) {
         await this.db.delete(store, id);
-        console.log(`✅ Deleted from ${store}:`, id);
-        return;
+      } else {
+        this.deleteFromLocalStorage(store, id);
       }
     } catch (error) {
       console.error(`❌ Delete failed in ${store}:`, error);
+      this.deleteFromLocalStorage(store, id);
     }
 
-    // Fallback to localStorage
-    this.deleteFromLocalStorage(store, id);
+    // Write-through to Supabase (fire-and-forget)
+    if (!LOCAL_ONLY_STORES.has(store as string)) {
+      const table = STORE_TO_TABLE[store as string] || (store as string);
+      syncEngine.syncToCloud(table, 'DELETE', { id }).catch(() => {});
+    }
   }
 
   async list<T extends keyof SolvidDBSchema>(
@@ -564,7 +661,6 @@ class LocalProvider {
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     existing.push(data);
     localStorage.setItem(key, JSON.stringify(existing));
-    console.log(`✅ Created in localStorage ${store}:`, data);
     return data;
   }
 
@@ -590,7 +686,6 @@ class LocalProvider {
       all.push(data);
     }
     localStorage.setItem(key, JSON.stringify(all));
-    console.log(`✅ Updated in localStorage ${store}:`, data);
     return data;
   }
 
@@ -602,7 +697,6 @@ class LocalProvider {
     const all = JSON.parse(localStorage.getItem(key) || '[]');
     const filtered = all.filter((item: any) => item.id !== id);
     localStorage.setItem(key, JSON.stringify(filtered));
-    console.log(`✅ Deleted from localStorage ${store}:`, id);
   }
 
   private listFromLocalStorage<T extends keyof SolvidDBSchema>(
@@ -644,7 +738,6 @@ export class DataProvider {
 
   async init(): Promise<void> {
     await this.local.init();
-    console.log('✅ DataProvider initialized');
   }
 
   // Expose local provider methods

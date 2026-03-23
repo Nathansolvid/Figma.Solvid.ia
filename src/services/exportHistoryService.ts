@@ -73,7 +73,6 @@ async function getDB(): Promise<IDBPDatabase> {
 export async function addExportToHistory(entry: ExportHistoryEntry): Promise<void> {
   const db = await getDB();
   await db.put(STORE_NAME, entry);
-  console.log('✅ Export added to history:', entry.id);
 }
 
 /**
@@ -144,7 +143,6 @@ export async function updateExportStatus(
 export async function deleteExport(id: string): Promise<void> {
   const db = await getDB();
   await db.delete(STORE_NAME, id);
-  console.log('🗑️ Export deleted:', id);
 }
 
 /**
@@ -153,7 +151,6 @@ export async function deleteExport(id: string): Promise<void> {
 export async function clearAllExports(): Promise<void> {
   const db = await getDB();
   await db.clear(STORE_NAME);
-  console.log('🗑️ All exports cleared');
 }
 
 /**

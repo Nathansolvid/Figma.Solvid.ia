@@ -16,7 +16,6 @@ export function useInfinitePacksList() {
   return useInfiniteQuery({
     queryKey: ['packs', 'infinite'],
     queryFn: async ({ pageParam = 0 }) => {
-      console.log('📜 useInfinitePacksList - Fetching page:', pageParam);
       
       // Get all packs
       const response = await apiClient.listPacksDirect();
@@ -27,7 +26,6 @@ export function useInfinitePacksList() {
       const end = start + PACKS_PER_PAGE;
       const packs = allPacks.slice(start, end);
       
-      console.log(`📜 Page ${pageParam}: ${packs.length} packs (${start}-${end} of ${allPacks.length})`);
       
       return {
         packs,

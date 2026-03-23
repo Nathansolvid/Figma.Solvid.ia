@@ -1,9 +1,10 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { Role } from '@/permissions';
 import { authService } from '@/services/authService';
 import { dataProvider } from '@/services/dataProvider';
 import { packService } from '@/services/packService';
-import { collaborationService } from '@/services/collaborationService'; // 🆕 Collaboration service
+import { collaborationService } from '@/services/collaborationService';
+import { invitationService, SubscriptionInfo } from '@/services/invitationService';
 
 export interface User {
   id: string;
@@ -13,6 +14,8 @@ export interface User {
   organizationId: string;
   organizationName?: string;
   avatar?: string;
+  consentCGU?: string;   // ISO timestamp of CGU consent
+  consentAI?: string;    // ISO timestamp of AI consent
 }
 
 interface UserContextType {
@@ -22,6 +25,8 @@ interface UserContextType {
   logout: () => Promise<void>;
   loading: boolean;
   initError: string | null;
+  subscription: SubscriptionInfo | null;
+  subscriptionExpired: boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -30,110 +35,113 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
 
-  // Check session on mount (local session from authService)
   useEffect(() => {
-    const checkSession = async () => {
+    const initApp = async () => {
       try {
-        console.log('🔍 UserContext - checkSession starting (LOCAL MODE)...');
-        
-        // Initialize dataProvider
-        console.log('🔍 UserContext - Initializing dataProvider...');
         await dataProvider.init();
-        console.log('✅ DataProvider initialized');
-        
-        // Initialize packService (seed templates)
-        console.log('🔍 UserContext - Seeding pack templates...');
         await packService.seedTemplates();
-        console.log('✅ Pack templates initialized');
-        
-        // Check for local session
-        console.log('🔍 UserContext - Checking local session...');
-        const session = authService.getSession();
-        console.log('🔍 UserContext - Session:', session);
-        
-        if (session) {
-          const user = await authService.getCurrentUser();
-          const org = await authService.getCurrentOrganization();
-          
-          if (user && org) {
-            const mappedUser: User = {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              role: mapRoleStringToEnum(user.role),
-              organizationId: user.organizationId,
-              organizationName: org.name,
-              avatar: user.avatar,
-            };
-            
-            setCurrentUserState(mappedUser);
-            
-            // 🆕 Initialize collaboration for logged-in user
-            collaborationService.initialize(mappedUser.id, mappedUser.name);
-            console.log('👥 Collaboration initialized for user:', mappedUser.name);
-            
-            console.log('✅ UserContext - User restored from local session:', mappedUser);
-          } else {
-            console.log('⚠️ UserContext - Session exists but user/org not found');
-            setCurrentUserState(null);
-          }
-        } else {
-          console.log('🔍 UserContext - No local session found, showing login page');
-          setCurrentUserState(null);
+        await authService.seedAdminIfNeeded();
+
+        // ── DEMO MODE ONLY ──────────────────────────────────────────────
+        if (import.meta.env.VITE_DEMO_MODE === 'true') {
+          // DEMO MODE ONLY — hardcoded dev user for local testing
+          const devUser: User = {
+            id: 'dev-admin-001',
+            name: 'Nathan Glatt',
+            email: 'nathan.glatt@icloud.com',
+            role: Role.ADMIN,
+            organizationId: 'dev-org-001',
+            organizationName: 'Solvid',
+          };
+          setCurrentUserState(devUser);
+          collaborationService.initialize(devUser.id, devUser.name);
+          return;
         }
+
+        // ── Real auth session check ─────────────────────────────────────
+        const session = authService.getSession();
+        if (session) {
+          try {
+            const user = await dataProvider.store.read('users', session.userId);
+            if (user) {
+              const org = await dataProvider.store.read('organizations', user.organizationId);
+              const authenticatedUser: User = {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: mapRoleStringToEnum(user.role),
+                organizationId: user.organizationId,
+                organizationName: org?.name,
+                avatar: user.avatar,
+                consentCGU: user.consentCGU,
+                consentAI: user.consentAI,
+              };
+              setCurrentUserState(authenticatedUser);
+              collaborationService.initialize(authenticatedUser.id, authenticatedUser.name);
+              return;
+            }
+          } catch (e) {
+            console.warn('[UserContext] Failed to load session user:', e);
+          }
+        }
+
+        // No valid session → will show login page
+        setCurrentUserState(null);
       } catch (error) {
-        console.error('❌ Check session error:', error);
-        console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        console.error('Initialization error:', error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         setInitError(`Erreur d'initialisation: ${errorMessage}`);
         setCurrentUserState(null);
       } finally {
-        console.log('✅ UserContext - Initialization complete, setting loading=false');
         setLoading(false);
       }
     };
 
-    checkSession();
+    initApp();
   }, []);
 
-  const setCurrentUser = (user: User | null) => {
-    console.log('🔍 UserContext.setCurrentUser called with:', user);
+  const setCurrentUser = useCallback((user: User | null) => {
     setCurrentUserState(user);
-    
-    // 🆕 Initialize collaboration when user logs in
+    setSubscriptionExpired(false);
+
     if (user) {
       collaborationService.initialize(user.id, user.name);
-      console.log('👥 Collaboration initialized for new user:', user.name);
+      const subCheck = invitationService.checkSubscription(user.id);
+      if (subCheck.info) {
+        setSubscription(subCheck.info);
+      }
+    } else {
+      setSubscription(null);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authService.logout();
-      
-      // 🆕 Disconnect collaboration on logout
-      collaborationService.disconnect();
-      console.log('👥 Collaboration disconnected');
-      
-      setCurrentUser(null);
-      console.log('✅ Logout successful');
-    } catch (error) {
-      console.error('❌ Logout error:', error);
-      // Always clear user state locally even if logout fails
       collaborationService.disconnect();
       setCurrentUser(null);
+      setSubscription(null);
+      setSubscriptionExpired(false);
+    } catch {
+      collaborationService.disconnect();
+      setCurrentUser(null);
+      setSubscription(null);
     }
-  };
+  }, [setCurrentUser]);
 
-  const value = {
+  const value = useMemo(() => ({
     currentUser,
     setCurrentUser,
     isAuthenticated: !!currentUser,
     logout,
     loading,
     initError,
-  };
+    subscription,
+    subscriptionExpired,
+  }), [currentUser, setCurrentUser, logout, loading, initError, subscription, subscriptionExpired]);
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
@@ -141,12 +149,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 export function useUser() {
   const context = useContext(UserContext);
   if (context === undefined) {
-    // During hot reload, the context might temporarily be undefined
-    // Only warn in development, and only if we're not in a hot reload scenario
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️ useUser called outside UserProvider - returning default values');
-      console.warn('This is often caused by React Hot Module Reload and can be safely ignored.');
-    }
     return {
       currentUser: null,
       setCurrentUser: () => {},
@@ -154,6 +156,8 @@ export function useUser() {
       logout: async () => {},
       loading: false,
       initError: null,
+      subscription: null,
+      subscriptionExpired: false,
     };
   }
   return context;
@@ -168,7 +172,6 @@ function mapRoleStringToEnum(roleString: string): Role {
     'Analyste données': Role.CLIENT_CONTRIBUTOR,
     'Contrôleur interne': Role.CLIENT_CONTRIBUTOR,
     'Admin': Role.ADMIN,
-    // Support for direct enum values from local storage
     'CLIENT_OWNER': Role.CLIENT_OWNER,
     'CONSULTANT': Role.CONSULTANT,
     'AUDITOR': Role.AUDITOR,
@@ -178,52 +181,3 @@ function mapRoleStringToEnum(roleString: string): Role {
   };
   return mapping[roleString] || Role.VIEWER;
 }
-
-// Mock users pour développement
-export const MOCK_USERS: User[] = [
-  {
-    id: 'admin-001',
-    name: 'Sophie Martin',
-    email: 'sophie.martin@solvid.fr',
-    role: Role.ADMIN,
-    organizationId: 'org-001',
-    organizationName: 'Solvid Demo Org',
-    avatar: '👩‍💼',
-  },
-  {
-    id: 'client-001',
-    name: 'Jean Dupont',
-    email: 'jean.dupont@client.com',
-    role: Role.CLIENT_CONTRIBUTOR,
-    organizationId: 'org-001',
-    organizationName: 'Solvid Demo Org',
-    avatar: '👤',
-  },
-  {
-    id: 'consultant-001',
-    name: 'Marie Leroy',
-    email: 'marie.leroy@consultant.com',
-    role: Role.CONSULTANT,
-    organizationId: 'org-001',
-    organizationName: 'Solvid Demo Org',
-    avatar: '👩‍🔬',
-  },
-  {
-    id: 'auditor-001',
-    name: 'Pierre Durand',
-    email: 'pierre.durand@audit.com',
-    role: Role.AUDITOR,
-    organizationId: 'org-001',
-    organizationName: 'Solvid Demo Org',
-    avatar: '🔍',
-  },
-  {
-    id: 'viewer-001',
-    name: 'Claire Moreau',
-    email: 'claire.moreau@viewer.com',
-    role: Role.VIEWER,
-    organizationId: 'org-001',
-    organizationName: 'Solvid Demo Org',
-    avatar: '👁️',
-  },
-];

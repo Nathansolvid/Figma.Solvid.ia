@@ -146,7 +146,6 @@ export function QuickStartLocal({ onComplete }: QuickStartLocalProps) {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const checklistItems = await dataProvider.store.listByIndex('checklist_items', 'packId', pack.id);
-      console.log(`✅ ${checklistItems.length} checklist items created`);
 
       // Mark 2 items as PROVIDED
       if (checklistItems.length >= 2) {
@@ -169,7 +168,6 @@ export function QuickStartLocal({ onComplete }: QuickStartLocalProps) {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const kpiRequirements = await dataProvider.store.listByIndex('kpi_requirements', 'packId', pack.id);
-      console.log(`✅ ${kpiRequirements.length} KPI requirements created`);
 
       // Add test values to first 2 KPIs
       if (kpiRequirements.length >= 2) {
@@ -261,7 +259,6 @@ export function QuickStartLocal({ onComplete }: QuickStartLocalProps) {
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const auditLogs = await dataProvider.store.list('audit_logs');
-      console.log(`✅ ${auditLogs.length} audit log entries created`);
 
       updateStepStatus('audit', 'success');
       currentStep++;

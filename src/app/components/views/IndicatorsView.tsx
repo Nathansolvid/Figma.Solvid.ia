@@ -51,12 +51,10 @@ export default function IndicatorsView({ dossierId, packId }: IndicatorsViewProp
     async function loadData() {
       try {
         setLoading(true);
-        console.log('📊 Loading indicators and packs from IndexedDB...');
 
         // Charger tous les packs
         const allPacks = await dataProvider.store.list('pack_instances');
         setPacks(allPacks);
-        console.log('📦 Loaded packs:', allPacks.length);
 
         if (allPacks.length === 0) {
           // Aucun pack trouvé - afficher empty state
@@ -67,7 +65,6 @@ export default function IndicatorsView({ dossierId, packId }: IndicatorsViewProp
 
         // Charger tous les indicateurs
         const allIndicators = await dataProvider.store.list('indicators');
-        console.log('📊 Loaded indicators:', allIndicators.length);
 
         // Enrichir les indicateurs avec le nom du pack
         const enrichedIndicators: ViewIndicator[] = allIndicators.map((ind: any) => {
@@ -92,7 +89,6 @@ export default function IndicatorsView({ dossierId, packId }: IndicatorsViewProp
         });
 
         setIndicators(enrichedIndicators);
-        console.log('✅ Indicators loaded and enriched:', enrichedIndicators.length);
       } catch (error) {
         console.error('❌ Error loading indicators:', error);
         setIndicators([]);

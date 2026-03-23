@@ -102,16 +102,13 @@ export function useCalculationSummary(indicatorId: string | null) {
       if (!indicatorId) throw new Error('Indicator ID is required');
       
       // Try to get real indicator data from the API/database
-      console.log(`📊 Loading calculation summary for: ${indicatorId}`);
       
       // DEMO MODE: Always use static data
-      console.log(`⚠️ Using DEMO MODE for: ${indicatorId}`);
       
       // FALLBACK: Use static demo data
       let indicator = indicators.find(i => i.id === indicatorId);
       
       if (!indicator) {
-        console.log(`⚠️ Indicator not found in static data, creating placeholder...`);
         
         // Create a minimal placeholder indicator
         // This allows transparency modal to open with empty state
@@ -160,16 +157,13 @@ export function useCalculationSummary(indicatorId: string | null) {
           last_updated: new Date().toISOString(),
         };
         
-        console.log(`✅ Created placeholder summary for unconfigured indicator`);
         return summary;
       }
       
-      console.log(`✅ Found indicator: ${indicator.code} - ${indicator.name}`);
       
       // Find profile
       const profile = calculationProfiles.find(p => p.id === indicator.transparency_profile_id);
       if (!profile) {
-        console.log(`⚠️ Profile not found, creating placeholder profile...`);
         
         const placeholderProfile: CalculationProfile = {
           id: `placeholder-${indicatorId}`,
@@ -217,7 +211,6 @@ export function useCalculationSummary(indicatorId: string | null) {
         last_updated: profile.updated_at?.toISOString() || new Date().toISOString(),
       };
       
-      console.log(`✅ [DEMO MODE] Found summary with ${inputs.length} inputs, ${factors.length} factors`);
       
       return summary;
     },
@@ -240,7 +233,6 @@ export function useCalculationWarnings(indicatorId: string | null) {
       
       // If indicator not found in static data, return empty warnings
       if (!indicator) {
-        console.log(`⚠️ No warnings available for indicator ${indicatorId} (not in static data)`);
         return [];
       }
       
@@ -513,7 +505,6 @@ export function useExportTransparency() {
       format: 'pdf' | 'json' | 'excel' 
     }) => {
       // DEMO MODE: Generate export client-side
-      console.log(`📥 [DEMO MODE] Exporting ${format.toUpperCase()} for ${indicatorId}`);
       
       // Find indicator data
       const indicator = indicators.find(i => i.id === indicatorId);
@@ -675,7 +666,7 @@ export function useExportTransparency() {
               </table>
               
               <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666;">
-                <small>Généré par Solvid.IA - ESG Audit-Ready Data Room</small>
+                <small>Généré par Solvid.IA - Plateforme ESG</small>
               </div>
             </body>
             </html>

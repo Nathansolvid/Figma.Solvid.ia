@@ -1,6 +1,6 @@
 // Types pour le système d'import Excel/CSV (Phase 4)
 
-export type ImportStatus = "idle" | "uploading" | "parsing" | "mapping" | "completed" | "error";
+export type ImportStatus = "idle" | "uploading" | "parsing" | "mapping" | "smart_preview" | "completed" | "error";
 
 export interface ImportedFile {
   id: string;

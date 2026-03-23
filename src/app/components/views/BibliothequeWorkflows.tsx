@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import {
   FileSpreadsheet,
   Download,
@@ -27,6 +28,7 @@ import {
   Zap,
   BarChart3,
   Shield,
+  ShieldCheck,
   ArrowRight,
   Lightbulb,
 } from "lucide-react";
@@ -36,15 +38,18 @@ import {
   WorkflowDefinition,
   WorkflowCategory,
   getWorkflowTemplateCount,
+  getWorkflowEvidenceCount,
 } from "@/utils/workflowLibrary";
 import { getTemplateByName, downloadExcelTemplate } from "@/utils/excelTemplates";
+import { WorkflowEvidenceChecklist } from "@/app/components/views/WorkflowEvidenceChecklist";
 
 interface BibliothequeWorkflowsProps {
   onSelectWorkflow?: (workflowId: string) => void;
   onNavigate?: (view: string) => void;
+  dossierId?: string;
 }
 
-export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: BibliothequeWorkflowsProps) {
+export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate, dossierId }: BibliothequeWorkflowsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<WorkflowCategory | 'Tous'>('Tous');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'Tous' | 'Débutant' | 'Intermédiaire' | 'Avancé'>('Tous');
@@ -84,39 +89,38 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
   }));
 
   // Télécharger tous les templates d'un workflow
-  const handleDownloadAllTemplates = (workflow: WorkflowDefinition) => {
+  const handleDownloadAllTemplates = async (workflow: WorkflowDefinition) => {
     const allTemplateIds = [...workflow.templatesRequired, ...workflow.templatesOptional];
     let downloaded = 0;
     let failed = 0;
 
-    allTemplateIds.forEach(templateId => {
-      // Mapping des IDs vers les vrais noms de templates
-      const templateNameMapping: { [key: string]: string } = {
-        'emissions-scope1': 'Émissions GES Scope 1 - Combustibles',
-        'emissions-scope2': 'Émissions GES Scope 2 - Électricité',
-        'emissions-scope3': 'Émissions GES Scope 3 - Achats',
-        'consommation-energie': 'Consommation d\'Énergie',
-        'consommation-eau': 'Consommation d\'Eau',
-        'dechets': 'Production de Déchets',
-        'effectifs': 'Effectifs et Données RH',
-        'formation': 'Formation et Développement',
-        'sante-securite': 'Effectifs et Données RH', // Fallback
-        'remuneration': 'Effectifs et Données RH', // Fallback
-        'dialogue-social': 'Effectifs et Données RH', // Fallback
-        'structure-gouvernance': 'Gouvernance et Conformité',
-        'ethique-conformite': 'Gouvernance et Conformité',
-        'risques-esg': 'Gouvernance et Conformité',
-        'chaine-valeur': 'Gouvernance et Conformité',
-        'strategie-esg': 'Plan d\'Actions ESG',
-        'parties-prenantes': 'Gouvernance et Conformité',
-        'biodiversite': 'Émissions GES', // Fallback
-      };
+    const templateNameMapping: { [key: string]: string } = {
+      'emissions-scope1':      'Émissions GES Scope 1 - Combustibles',
+      'emissions-scope2':      'Émissions GES Scope 2 - Électricité',
+      'emissions-scope3':      'Émissions GES Scope 3 - Achats',
+      'consommation-energie':  'Consommation d\'Énergie',
+      'consommation-eau':      'Consommation d\'Eau',
+      'dechets':               'Production de Déchets',
+      'effectifs':             'Effectifs et Données RH',
+      'formation':             'Formation et Développement',
+      'sante-securite':        'Santé et sécurité au travail',
+      'remuneration':          'Rémunération et équité salariale',
+      'dialogue-social':       'Dialogue social',
+      'structure-gouvernance': 'Gouvernance et Conformité',
+      'ethique-conformite':    'Gouvernance et Conformité',
+      'risques-esg':           'Gouvernance et Conformité',
+      'chaine-valeur':         'Chaîne de valeur et fournisseurs',
+      'strategie-esg':         'Plan d\'Actions ESG',
+      'parties-prenantes':     'Engagement parties prenantes',
+      'biodiversite':          'Impact biodiversité',
+    };
 
+    for (const templateId of allTemplateIds) {
       const templateName = templateNameMapping[templateId];
       if (templateName) {
         const config = getTemplateByName(templateName);
         if (config) {
-          downloadExcelTemplate(config);
+          await downloadExcelTemplate(config);
           downloaded++;
         } else {
           failed++;
@@ -124,24 +128,24 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
       } else {
         failed++;
       }
-    });
+    }
 
     if (downloaded > 0) {
-      toast.success(`${downloaded} template(s) téléchargé(s) !`, {
+      toast.success(`${downloaded} modèle(s) téléchargé(s) !`, {
         description: 'Complétez-les dans Excel et importez-les dans votre dossier',
         duration: 5000,
       });
     }
-    
+
     if (failed > 0) {
-      toast.warning(`${failed} template(s) non disponible(s)`, {
-        description: 'Certains templates ne sont pas encore implémentés',
+      toast.warning(`${failed} modèle(s) non disponible(s)`, {
+        description: 'Certains modèles ne sont pas encore implémentés',
       });
     }
   };
 
   // 🆕 Télécharger un template individuel
-  const handleDownloadSingleTemplate = (templateId: string) => {
+  const handleDownloadSingleTemplate = async (templateId: string) => {
     // Prevent multiple simultaneous downloads
     if (downloadingTemplates.has(templateId)) {
       toast.warning('Téléchargement en cours...', {
@@ -153,54 +157,54 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
     setDownloadingTemplates(prev => new Set(prev).add(templateId));
 
     const templateNameMapping: { [key: string]: string } = {
-      'emissions-scope1': 'Émissions GES Scope 1 - Combustibles',
-      'emissions-scope2': 'Émissions GES Scope 2 - Électricité',
-      'emissions-scope3': 'Émissions GES Scope 3 - Achats',
-      'consommation-energie': 'Consommation d\'Énergie',
-      'consommation-eau': 'Consommation d\'Eau',
-      'dechets': 'Production de Déchets',
-      'effectifs': 'Effectifs et Données RH',
-      'formation': 'Formation et Développement',
-      'sante-securite': 'Effectifs et Données RH',
-      'remuneration': 'Effectifs et Données RH',
-      'dialogue-social': 'Effectifs et Données RH',
+      'emissions-scope1':      'Émissions GES Scope 1 - Combustibles',
+      'emissions-scope2':      'Émissions GES Scope 2 - Électricité',
+      'emissions-scope3':      'Émissions GES Scope 3 - Achats',
+      'consommation-energie':  'Consommation d\'Énergie',
+      'consommation-eau':      'Consommation d\'Eau',
+      'dechets':               'Production de Déchets',
+      'effectifs':             'Effectifs et Données RH',
+      'formation':             'Formation et Développement',
+      'sante-securite':        'Santé et sécurité au travail',
+      'remuneration':          'Rémunération et équité salariale',
+      'dialogue-social':       'Dialogue social',
       'structure-gouvernance': 'Gouvernance et Conformité',
-      'ethique-conformite': 'Gouvernance et Conformité',
-      'risques-esg': 'Gouvernance et Conformité',
-      'chaine-valeur': 'Gouvernance et Conformité',
-      'strategie-esg': 'Plan d\'Actions ESG',
-      'parties-prenantes': 'Gouvernance et Conformité',
-      'biodiversite': 'Émissions GES',
+      'ethique-conformite':    'Gouvernance et Conformité',
+      'risques-esg':           'Gouvernance et Conformité',
+      'chaine-valeur':         'Chaîne de valeur et fournisseurs',
+      'strategie-esg':         'Plan d\'Actions ESG',
+      'parties-prenantes':     'Engagement parties prenantes',
+      'biodiversite':          'Impact biodiversité',
     };
 
     const templateName = templateNameMapping[templateId];
-    
-    setTimeout(() => {
+
+    try {
       if (templateName) {
         const config = getTemplateByName(templateName);
         if (config) {
-          downloadExcelTemplate(config);
-          toast.success(`Template "${config.name}" téléchargé !`, {
+          await downloadExcelTemplate(config);
+          toast.success(`Modèle "${config.templateName}" téléchargé !`, {
             description: 'Complétez-le dans Excel et importez-le dans votre dossier',
             duration: 3000,
           });
         } else {
-          toast.error('Template non disponible', {
-            description: `Le template "${templateName}" n'existe pas encore`,
+          toast.error('Modèle non disponible', {
+            description: `Le modèle "${templateName}" n'existe pas encore`,
           });
         }
       } else {
-        toast.error('Template non trouvé', {
+        toast.error('Modèle non trouvé', {
           description: `Mapping manquant pour l'ID "${templateId}"`,
         });
       }
-      
+    } finally {
       setDownloadingTemplates(prev => {
         const next = new Set(prev);
         next.delete(templateId);
         return next;
       });
-    }, 500); // Small delay to simulate download
+    }
   };
 
   const getCategoryColor = (category: WorkflowCategory) => {
@@ -275,7 +279,7 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Templates</p>
+                <p className="text-sm text-muted-foreground mb-1">Modèles</p>
                 <p className="font-semibold flex items-center gap-2">
                   <FileSpreadsheet className="h-4 w-4 text-[#059669]" />
                   {templateCount.total} au total
@@ -322,113 +326,156 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
           </CardContent>
         </Card>
 
-        {/* Templates obligatoires */}
-        {selectedWorkflow.templatesRequired.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-[#059669]" />
-                Templates obligatoires ({selectedWorkflow.templatesRequired.length})
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Ces templates sont indispensables pour compléter ce workflow
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {selectedWorkflow.templatesRequired.map(templateId => {
-                  const isDownloading = downloadingTemplates.has(templateId);
-                  return (
-                    <div 
-                      key={templateId}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileSpreadsheet className="h-5 w-5 text-[#059669]" />
-                        <div>
-                          <p className="font-medium">{templateId}</p>
-                          <p className="text-xs text-muted-foreground">Format Excel (.xlsx)</p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-[#059669] hover:bg-[#047857]"
-                        onClick={() => handleDownloadSingleTemplate(templateId)}
-                        disabled={isDownloading}
-                      >
-                        {isDownloading ? (
-                          <>
-                            <Clock className="h-3 w-3 mr-1 animate-spin" />
-                            Téléchargement...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-3 w-3 mr-1" />
-                            Télécharger
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* ── Onglets Templates / Preuves ── */}
+        <Tabs defaultValue="templates">
+          <TabsList className="bg-white border rounded-xl p-1 gap-1 h-auto">
+            <TabsTrigger
+              value="templates"
+              className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-[#0F4C3A] data-[state=active]:text-white flex items-center gap-2"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Modèles ({templateCount.total})
+            </TabsTrigger>
+            <TabsTrigger
+              value="preuves"
+              className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-[#0F4C3A] data-[state=active]:text-white flex items-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Justificatifs requis ({selectedWorkflow.requiredEvidence.length})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Templates optionnels */}
-        {selectedWorkflow.templatesOptional.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-500" />
-                Templates optionnels ({selectedWorkflow.templatesOptional.length})
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Ces templates peuvent enrichir votre analyse mais ne sont pas obligatoires
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {selectedWorkflow.templatesOptional.map(templateId => {
-                  const isDownloading = downloadingTemplates.has(templateId);
-                  return (
-                    <div 
-                      key={templateId}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-blue-500" />
-                        <div>
-                          <p className="font-medium">{templateId}</p>
-                          <p className="text-xs text-muted-foreground">Format Excel (.xlsx)</p>
+          {/* ── Tab Templates ── */}
+          <TabsContent value="templates" className="space-y-4 mt-4">
+            {/* Templates obligatoires */}
+            {selectedWorkflow.templatesRequired.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-5 w-5 text-[#059669]" />
+                    Modèles obligatoires ({selectedWorkflow.templatesRequired.length})
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Ces modèles sont indispensables pour compléter ce parcours
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {selectedWorkflow.templatesRequired.map(templateId => {
+                      const isDownloading = downloadingTemplates.has(templateId);
+                      return (
+                        <div
+                          key={templateId}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <FileSpreadsheet className="h-5 w-5 text-[#059669]" />
+                            <div>
+                              <p className="font-medium">{templateId}</p>
+                              <p className="text-xs text-muted-foreground">Format Excel (.xlsx)</p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-[#059669] hover:bg-[#047857]"
+                            onClick={() => handleDownloadSingleTemplate(templateId)}
+                            disabled={isDownloading}
+                          >
+                            {isDownloading ? (
+                              <>
+                                <Clock className="h-3 w-3 mr-1 animate-spin" />
+                                Téléchargement...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-3 w-3 mr-1" />
+                                Télécharger
+                              </>
+                            )}
+                          </Button>
                         </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDownloadSingleTemplate(templateId)}
-                        disabled={isDownloading}
-                      >
-                        {isDownloading ? (
-                          <>
-                            <Clock className="h-3 w-3 mr-1 animate-spin" />
-                            Téléchargement...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-3 w-3 mr-1" />
-                            Télécharger
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Templates optionnels */}
+            {selectedWorkflow.templatesOptional.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    Modèles optionnels ({selectedWorkflow.templatesOptional.length})
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Ces modèles peuvent enrichir votre analyse mais ne sont pas obligatoires
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {selectedWorkflow.templatesOptional.map(templateId => {
+                      const isDownloading = downloadingTemplates.has(templateId);
+                      return (
+                        <div
+                          key={templateId}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-blue-500" />
+                            <div>
+                              <p className="font-medium">{templateId}</p>
+                              <p className="text-xs text-muted-foreground">Format Excel (.xlsx)</p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadSingleTemplate(templateId)}
+                            disabled={isDownloading}
+                          >
+                            {isDownloading ? (
+                              <>
+                                <Clock className="h-3 w-3 mr-1 animate-spin" />
+                                Téléchargement...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-3 w-3 mr-1" />
+                                Télécharger
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* ── Tab Preuves requises ── */}
+          <TabsContent value="preuves" className="mt-4">
+            {dossierId ? (
+              <WorkflowEvidenceChecklist
+                workflowId={selectedWorkflow.id}
+                dossierId={dossierId}
+              />
+            ) : (
+              <Card className="border-2 border-dashed">
+                <CardContent className="p-12 text-center">
+                  <ShieldCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Ouvrez un dossier d'abord</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Pour voir et déposer les preuves obligatoires, ouvrez d'abord un dossier depuis le tableau de bord.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
@@ -446,10 +493,10 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-[#0A3B2E] mb-1">
-                    Étape 2 : Sélectionner vos workflows
+                    Étape 2 : Sélectionner vos parcours ESG
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Choisissez les thématiques ESG à traiter et téléchargez les templates correspondants
+                    Choisissez les thématiques ESG à traiter et téléchargez les modèles correspondants
                   </p>
                 </div>
               </div>
@@ -461,14 +508,14 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
                   className="border-[#10B981] text-[#0A3B2E] hover:bg-[#E8F3F0]"
                 >
                   <Lightbulb className="h-4 w-4 mr-2" />
-                  Voir tous les templates
+                  Voir tous les modèles
                 </Button>
                 <Button
                   size="sm"
                   className="bg-[#10B981] hover:bg-[#059669]"
                   onClick={() => onNavigate('bibliotheque-templates')}
                 >
-                  Étape suivante : Templates
+                  Étape suivante : Modèles
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -479,9 +526,9 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
 
       {/* En-tête */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Bibliothèque de Workflows</h1>
+        <h1 className="text-3xl font-bold mb-2">Bibliothèque de Parcours ESG</h1>
         <p className="text-muted-foreground">
-          Explorez les {WORKFLOW_LIBRARY.length} workflows disponibles. Chaque workflow = ensemble de templates à compléter.
+          Explorez les {WORKFLOW_LIBRARY.length} parcours disponibles. Glissez une carte vers la sidebar pour l'ajouter au dossier actif.
         </p>
       </div>
 
@@ -557,7 +604,7 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Rechercher un workflow..."
+          placeholder="Rechercher un référentiel..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -567,18 +614,23 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
       {/* Résultats */}
       <div>
         <p className="text-sm text-muted-foreground mb-4">
-          {filteredWorkflows.length} workflow{filteredWorkflows.length > 1 ? 's' : ''} trouvé{filteredWorkflows.length > 1 ? 's' : ''}
+          {filteredWorkflows.length} référentiel{filteredWorkflows.length > 1 ? 's' : ''} trouvé{filteredWorkflows.length > 1 ? 's' : ''}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredWorkflows.map(workflow => {
             const Icon = getCategoryIcon(workflow.category);
             const templateCount = getWorkflowTemplateCount(workflow);
-            
+
             return (
               <Card
                 key={workflow.id}
-                className="border-2 hover:border-[#059669] transition-all"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('referentiel-id', workflow.id);
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                className="border-2 hover:border-[#059669] transition-all cursor-grab active:cursor-grabbing select-none"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
@@ -597,6 +649,14 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
                       <CardTitle className="text-base">
                         {workflow.name}
                       </CardTitle>
+                    </div>
+                    {/* Indicateur drag */}
+                    <div className="text-muted-foreground opacity-40 hover:opacity-70 transition-opacity flex-shrink-0 pt-1" title="Glisser vers la sidebar pour ajouter">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+                        <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+                        <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+                      </svg>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -626,7 +686,7 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
 
                   {/* Templates */}
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Templates :</p>
+                    <p className="text-xs text-muted-foreground mb-1">Modèles :</p>
                     <div className="flex items-center gap-2 text-sm">
                       <FileSpreadsheet className="h-4 w-4 text-[#059669]" />
                       <span className="font-bold text-[#059669]">{templateCount.required}</span>
@@ -640,6 +700,28 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
                       )}
                     </div>
                   </div>
+
+                  {/* Preuves requises */}
+                  {(workflow.requiredEvidence?.length ?? 0) > 0 && (() => {
+                    const evCount = getWorkflowEvidenceCount(workflow);
+                    return (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Justificatifs :</p>
+                        <div className="flex items-center gap-2 text-sm">
+                          <ShieldCheck className="h-4 w-4 text-amber-600" />
+                          <span className="font-bold text-amber-600">{evCount.mandatory}</span>
+                          <span className="text-muted-foreground">obligatoires</span>
+                          {evCount.optional > 0 && (
+                            <>
+                              <span className="text-muted-foreground">+</span>
+                              <span className="font-bold text-gray-500">{evCount.optional}</span>
+                              <span className="text-muted-foreground">optionnelles</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Audience */}
                   <div>
@@ -699,7 +781,7 @@ export function BibliothequeWorkflows({ onSelectWorkflow, onNavigate }: Biblioth
           <Card className="border-2 border-dashed">
             <CardContent className="p-12 text-center">
               <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Aucun workflow trouvé</h3>
+              <h3 className="text-lg font-semibold mb-2">Aucun référentiel trouvé</h3>
               <p className="text-muted-foreground">
                 Essayez de modifier vos critères de recherche
               </p>

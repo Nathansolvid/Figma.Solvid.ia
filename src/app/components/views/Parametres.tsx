@@ -1,19 +1,40 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { Separator } from "@/app/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { CreateNotificationDialog } from "@/app/components/CreateNotificationDialog";
 import { useUser } from "@/contexts/UserContext";
 import { Role } from "@/permissions";
-import { 
+import {
   Building2,
   Users,
   Bell,
   Shield,
   Database,
-  HelpCircle
+  HelpCircle,
+  Sparkles,
+  Eye,
+  EyeOff,
+  Mail,
+  UserPlus,
+  Clock,
+  XCircle,
+  CheckCircle,
+  AlertTriangle,
+  Loader2,
+  Send,
+  Upload,
+  Palette,
+  Trash2,
+  Image,
+  Download,
+  FileText,
+  ExternalLink,
+  ScrollText,
 } from "lucide-react";
 import {
   Table,
@@ -24,42 +45,189 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { Badge } from "@/app/components/ui/badge";
-import { toast } from "sonner"; // 🔧 Add toast for user feedback
-
-const users = [
-  { id: 1, name: "Sophie Martin", email: "s.martin@entreprise.fr", role: "Administrateur", status: "active" },
-  { id: 2, name: "Thomas Dubois", email: "t.dubois@entreprise.fr", role: "Éditeur", status: "active" },
-  { id: 3, name: "Marie Laurent", email: "m.laurent@entreprise.fr", role: "Contributeur", status: "active" },
-  { id: 4, name: "Pierre Durand", email: "p.durand@entreprise.fr", role: "Lecteur", status: "active" },
-  { id: 5, name: "Julie Moreau", email: "j.moreau@entreprise.fr", role: "Contributeur", status: "inactive" },
-];
+import { toast } from "sonner";
+import {
+  getStoredApiKey, setStoredApiKey,
+  getStoredReportModel, setStoredReportModel,
+  getStoredIndicatorModel, setStoredIndicatorModel,
+  validateApiKey,
+  AVAILABLE_REPORT_MODELS,
+  AVAILABLE_INDICATOR_MODELS,
+} from "@/services/aiQualitativeService";
+import {
+  invitationService,
+  Invitation,
+  SubscriptionPlan,
+  PLAN_LABELS,
+  SubscriptionInfo,
+} from "@/services/invitationService";
+import { dataProvider, type Organization, type User as DataUser } from "@/services/dataProvider";
+import { authService } from "@/services/authService";
+import { rgpdService } from "@/services/rgpdService";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/app/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/app/components/ui/dialog";
 
 export function Parametres() {
   const user = useUser();
 
-  // 🔧 Add handler functions for all buttons
+  // ─── Pending users state (admin approval) ─────────────────────────────────
+  const [pendingUsers, setPendingUsers] = useState<DataUser[]>([]);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  const refreshPendingUsers = async () => {
+    try {
+      const allUsers = await dataProvider.store.list<DataUser>('users');
+      setPendingUsers(allUsers.filter(u => u.status === 'pending'));
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    if (user.currentUser?.role === Role.ADMIN) {
+      refreshPendingUsers();
+    }
+  }, [user.currentUser]);
+
+  const handleApproveUser = async (u: DataUser) => {
+    setApprovingId(u.id);
+    try {
+      await dataProvider.store.update('users', { ...u, status: 'approved' as const });
+      // Activer l'essai gratuit de 14 jours
+      invitationService.activateSubscription(u.id, {
+        plan: 'trial',
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      toast.success('Utilisateur approuvé', {
+        description: `${u.name} (${u.email}) peut maintenant se connecter`,
+      });
+      refreshPendingUsers();
+    } catch {
+      toast.error('Erreur', { description: 'Impossible d\'approuver l\'utilisateur' });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectUser = async (u: DataUser) => {
+    setApprovingId(u.id);
+    try {
+      await dataProvider.store.update('users', { ...u, status: 'rejected' as const });
+      toast.success('Demande refusée', {
+        description: `L'accès a été refusé pour ${u.email}`,
+      });
+      refreshPendingUsers();
+    } catch {
+      toast.error('Erreur', { description: 'Impossible de refuser l\'utilisateur' });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  // ─── Invitation state ─────────────────────────────────────────────────────
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('CLIENT_CONTRIBUTOR');
+  const [invitePlan, setInvitePlan] = useState<SubscriptionPlan>('starter');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [currentSub, setCurrentSub] = useState<SubscriptionInfo | null>(null);
+
+  // Load invitations and subscription
+  useEffect(() => {
+    refreshInvitations();
+    if (user.currentUser) {
+      const sub = invitationService.getSubscriptionInfo(user.currentUser.id);
+      setCurrentSub(sub);
+    }
+  }, [user.currentUser]);
+
+  const refreshInvitations = () => {
+    const orgId = user.currentUser?.organizationId;
+    const list = invitationService.listInvitations(orgId);
+    setInvitations(list);
+  };
+
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim()) {
+      toast.error('Veuillez entrer un email');
+      return;
+    }
+    if (!user.currentUser) return;
+
+    setInviteLoading(true);
+    try {
+      await invitationService.inviteUser({
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        organizationId: user.currentUser.organizationId,
+        organizationName: user.currentUser.organizationName || 'Ma Société',
+        invitedBy: user.currentUser.id,
+        invitedByName: user.currentUser.name,
+        plan: invitePlan,
+      });
+
+      toast.success('Invitation envoyée !', {
+        description: `Un email d'invitation a été envoyé à ${inviteEmail}`,
+      });
+      setInviteEmail('');
+      setShowInviteForm(false);
+      refreshInvitations();
+    } catch (error: any) {
+      toast.error('Erreur', {
+        description: error?.message || "Impossible d'envoyer l'invitation",
+      });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleRevokeInvitation = (inv: Invitation) => {
+    invitationService.revokeInvitation(inv.id);
+    toast.success('Invitation révoquée', {
+      description: `L'invitation pour ${inv.email} a été annulée`,
+    });
+    refreshInvitations();
+  };
+
+  // ─── Other handlers ───────────────────────────────────────────────────────
   const handleSaveCompanyInfo = () => {
     toast.success("Modifications enregistrées", {
       description: "Les informations de l'entreprise ont été mises à jour"
     });
   };
 
-  const handleInviteUser = () => {
-    toast.info("Invitation utilisateur", {
-      description: "Le formulaire d'invitation sera bientôt disponible"
-    });
-  };
-
-  const handleManageUser = (userName: string) => {
-    toast.info(`Gestion de ${userName}`, {
-      description: "Options de gestion de l'utilisateur"
-    });
-  };
-
-  const handleExportAllData = () => {
-    toast.success("Export démarré", {
-      description: "Vos données sont en cours d'export au format Excel"
-    });
+  const handleExportAllData = async () => {
+    if (!user.currentUser) return;
+    try {
+      toast.info("Export en cours...");
+      const data = await rgpdService.exportUserData(user.currentUser.id, user.currentUser.organizationId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `solvid-ia-export-${user.currentUser.email}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Export termine", { description: "Vos donnees ont ete telechargees" });
+    } catch (error) {
+      toast.error("Erreur d'export", { description: String(error) });
+    }
   };
 
   const handleBackupDatabase = () => {
@@ -68,10 +236,63 @@ export function Parametres() {
     });
   };
 
-  const handleDeleteAllData = () => {
-    toast.error("Action critique", {
-      description: "Veuillez confirmer la suppression de toutes les données. Cette action est irréversible."
-    });
+  // ─── RGPD state ─────────────────────────────────────────────────────────────
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryData, setInventoryData] = useState<Array<{category: string; dataType: string; purpose: string; retention: string; count: number}>>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+
+  const handleDeleteAllData = async () => {
+    if (deleteConfirmInput !== 'SUPPRIMER' || !user.currentUser) return;
+    setDeleteLoading(true);
+    try {
+      const result = await rgpdService.deleteUserAccount(user.currentUser.id, user.currentUser.organizationId);
+      const totalDeleted = Object.values(result.deletedCounts).reduce((a, b) => a + b, 0);
+      toast.success("Compte supprime", {
+        description: `${totalDeleted} enregistrements supprimes. Deconnexion en cours...`,
+      });
+      setDeleteDialogOpen(false);
+      setDeleteConfirmInput('');
+      // Logout after short delay to let toast show
+      setTimeout(async () => {
+        await user.logout();
+      }, 1500);
+    } catch (error) {
+      toast.error("Erreur de suppression", { description: String(error) });
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleShowInventory = async () => {
+    if (!user.currentUser) return;
+    setInventoryOpen(true);
+    setInventoryLoading(true);
+    try {
+      const data = await rgpdService.getDataInventory(user.currentUser.id, user.currentUser.organizationId);
+      setInventoryData(data);
+    } catch (error) {
+      toast.error("Erreur", { description: String(error) });
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const handleConsentToggle = async (type: 'cgu' | 'ai', value: boolean) => {
+    if (!user.currentUser) return;
+    try {
+      await rgpdService.updateConsent(user.currentUser.id, type, value);
+      // Update local user state
+      const updatedUser = { ...user.currentUser };
+      if (type === 'cgu') updatedUser.consentCGU = value ? new Date().toISOString() : undefined;
+      if (type === 'ai') updatedUser.consentAI = value ? new Date().toISOString() : undefined;
+      user.setCurrentUser(updatedUser);
+      toast.success("Consentement mis a jour");
+    } catch (error) {
+      toast.error("Erreur", { description: String(error) });
+    }
   };
 
   const handleOpenDocumentation = () => {
@@ -92,6 +313,166 @@ export function Parametres() {
     });
   };
 
+  // ─── Branding state ─────────────────────────────────────────────────────
+  const [brandPrimaryColor, setBrandPrimaryColor] = useState('#059669');
+  const [brandSecondaryColor, setBrandSecondaryColor] = useState('#0A3B2E');
+  const [brandLogoBase64, setBrandLogoBase64] = useState<string | null>(null);
+  const [brandLogoName, setBrandLogoName] = useState<string>('');
+  const [brandSaving, setBrandSaving] = useState(false);
+
+  // Load organization branding
+  useEffect(() => {
+    async function loadBranding() {
+      if (!user.currentUser?.organizationId) return;
+      try {
+        const org = await dataProvider.store.read<Organization>('organizations', user.currentUser.organizationId);
+        if (org) {
+          if (org.brandPrimaryColor) setBrandPrimaryColor(org.brandPrimaryColor);
+          if (org.brandSecondaryColor) setBrandSecondaryColor(org.brandSecondaryColor);
+          if (org.brandLogoBase64) {
+            setBrandLogoBase64(org.brandLogoBase64);
+            setBrandLogoName('Logo existant');
+          }
+        }
+      } catch (e) {
+        // silently ignore — branding fields are optional
+      }
+    }
+    loadBranding();
+  }, [user.currentUser?.organizationId]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Format invalide', { description: 'Veuillez sélectionner une image PNG ou JPEG' });
+      return;
+    }
+    if (file.size > 500 * 1024) {
+      toast.error('Fichier trop volumineux', { description: 'Le logo ne doit pas dépasser 500 Ko' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        // Resize if too large (max 400x200)
+        let w = img.width;
+        let h = img.height;
+        if (w > 400 || h > 200) {
+          const ratio = Math.min(400 / w, 200 / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL(file.type.includes('png') ? 'image/png' : 'image/jpeg', 0.9);
+          setBrandLogoBase64(base64);
+          setBrandLogoName(file.name);
+        }
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setBrandLogoBase64(null);
+    setBrandLogoName('');
+  };
+
+  const handleSaveBranding = async () => {
+    if (!user.currentUser?.organizationId) return;
+    setBrandSaving(true);
+    try {
+      const org = await dataProvider.store.read<Organization>('organizations', user.currentUser.organizationId);
+      if (org) {
+        await dataProvider.store.update('organizations', {
+          ...org,
+          brandPrimaryColor,
+          brandSecondaryColor,
+          brandLogoBase64: brandLogoBase64 || undefined,
+        });
+      }
+      toast.success('Identité visuelle enregistrée', {
+        description: 'Les couleurs et le logo seront appliqués aux prochains rapports PDF',
+      });
+    } catch (e) {
+      toast.error('Erreur', { description: 'Impossible de sauvegarder les paramètres de branding' });
+    } finally {
+      setBrandSaving(false);
+    }
+  };
+
+  // ─── AI section state ────────────────────────────────────────────────────
+  const [aiApiKey, setAiApiKey] = useState(getStoredApiKey() ?? "");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [aiReportModel, setAiReportModel] = useState(getStoredReportModel());
+  const [aiIndicatorModel, setAiIndicatorModel] = useState(getStoredIndicatorModel());
+  const [aiStatus, setAiStatus] = useState<"connected" | "none" | "invalid" | null>(
+    getStoredApiKey() ? "connected" : "none"
+  );
+  const [aiTesting, setAiTesting] = useState(false);
+
+  const handleTestAiConnection = async () => {
+    if (!aiApiKey.trim()) {
+      setAiStatus("none");
+      toast.error("Aucune clé API", { description: "Veuillez entrer une clé API Anthropic" });
+      return;
+    }
+    setAiTesting(true);
+    const result = await validateApiKey(aiApiKey.trim());
+    setAiTesting(false);
+    if (result.valid) {
+      setAiStatus("connected");
+      toast.success("Connexion IA réussie", { description: "La clé API est valide" });
+    } else {
+      setAiStatus("invalid");
+      toast.error("Connexion IA échouée", { description: result.error ?? "Erreur inconnue" });
+    }
+  };
+
+  const handleSaveAiSettings = () => {
+    setStoredApiKey(aiApiKey);
+    setStoredReportModel(aiReportModel);
+    setStoredIndicatorModel(aiIndicatorModel);
+    toast.success("Configuration IA enregistrée", {
+      description: "Les paramètres de l'assistant IA ont été sauvegardés"
+    });
+  };
+
+  // ─── Helper: status badge for invitations ─────────────────────────────────
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100"><Clock className="h-3 w-3 mr-1" /> En attente</Badge>;
+      case 'accepted':
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="h-3 w-3 mr-1" /> Acceptée</Badge>;
+      case 'expired':
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><AlertTriangle className="h-3 w-3 mr-1" /> Expirée</Badge>;
+      case 'revoked':
+        return <Badge className="bg-gray-100 text-gray-600 hover:bg-gray-100"><XCircle className="h-3 w-3 mr-1" /> Révoquée</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    const labels: Record<string, string> = {
+      CLIENT_OWNER: 'Directeur ESG',
+      CONSULTANT: 'Consultant ESG',
+      CLIENT_CONTRIBUTOR: 'Analyste données',
+      AUDITOR: 'Auditeur externe',
+      ADMIN: 'Administrateur',
+      VIEWER: 'Observateur',
+    };
+    return <Badge variant="outline">{labels[role] || role}</Badge>;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -100,6 +481,115 @@ export function Parametres() {
           Configuration de votre espace de travail et préférences
         </p>
       </div>
+
+      {/* Abonnement actif */}
+      {currentSub && (
+        <Card className="border-[#059669]/30 bg-gradient-to-r from-[#E8F3F0] to-white">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#059669] rounded-lg flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-[#0A3B2E]">
+                    {PLAN_LABELS[currentSub.plan]}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentSub.isActive
+                      ? `${currentSub.daysRemaining} jours restants`
+                      : 'Abonnement expiré'}
+                  </p>
+                </div>
+              </div>
+              <Badge className={currentSub.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                {currentSub.isActive ? 'Actif' : 'Expiré'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Demandes d'accès en attente (ADMIN uniquement) */}
+      {user.currentUser?.role === Role.ADMIN && (
+        <Card className={pendingUsers.length > 0 ? 'border-amber-300 bg-amber-50/30' : ''}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />
+                  Demandes d'accès
+                  {pendingUsers.length > 0 && (
+                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 ml-2">
+                      {pendingUsers.length} en attente
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Les nouveaux utilisateurs doivent être validés avant de pouvoir accéder à la plateforme
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {pendingUsers.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rôle demandé</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingUsers.map((pu) => (
+                    <TableRow key={pu.id}>
+                      <TableCell className="font-medium">{pu.name}</TableCell>
+                      <TableCell className="text-sm">{pu.email}</TableCell>
+                      <TableCell>{getRoleBadge(pu.role)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(pu.createdAt).toLocaleDateString('fr-FR')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-[#059669] hover:bg-[#048558]"
+                            disabled={approvingId === pu.id}
+                            onClick={() => handleApproveUser(pu)}
+                          >
+                            {approvingId === pu.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <><CheckCircle className="h-3.5 w-3.5 mr-1" /> Approuver</>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                            disabled={approvingId === pu.id}
+                            onClick={() => handleRejectUser(pu)}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Refuser
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50 text-green-600" />
+                <p className="text-sm">Aucune demande en attente</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Informations entreprise */}
       <Card>
@@ -113,7 +603,7 @@ export function Parametres() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="company-name">Raison sociale</Label>
-              <Input id="company-name" defaultValue="Entreprise Exemple SAS" />
+              <Input id="company-name" defaultValue={user.currentUser?.organizationName || "Entreprise Exemple SAS"} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="siret">SIRET</Label>
@@ -137,9 +627,9 @@ export function Parametres() {
             </div>
           </div>
           <div className="flex justify-end pt-4">
-            <Button 
+            <Button
               className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
-              onClick={handleSaveCompanyInfo} // 🔧 Added onClick
+              onClick={handleSaveCompanyInfo}
             >
               Enregistrer les modifications
             </Button>
@@ -147,60 +637,278 @@ export function Parametres() {
         </CardContent>
       </Card>
 
-      {/* Gestion des utilisateurs */}
+      {/* Identité visuelle (rapports PDF) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Identité visuelle des rapports
+          </CardTitle>
+          <CardDescription>
+            Logo et couleurs appliqués aux rapports PDF générés
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Logo Upload */}
+          <div className="space-y-3">
+            <Label>Logo de l'entreprise</Label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/30">
+                {brandLogoBase64 ? (
+                  <img src={brandLogoBase64} alt="Logo" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <Image className="h-6 w-6 text-muted-foreground/50" />
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('brand-logo-input')?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    {brandLogoBase64 ? 'Changer' : 'Upload'}
+                  </Button>
+                  {brandLogoBase64 && (
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800 hover:bg-red-50" onClick={handleRemoveLogo}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Supprimer
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">PNG ou JPEG, max 500 Ko</p>
+              </div>
+              <input
+                id="brand-logo-input"
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Color Pickers */}
+          <div className="space-y-3">
+            <Label>Couleurs de marque</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand-primary" className="text-sm text-muted-foreground">
+                  Couleur principale (en-têtes, accents)
+                </Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="brand-primary"
+                    type="color"
+                    value={brandPrimaryColor}
+                    onChange={(e) => setBrandPrimaryColor(e.target.value)}
+                    className="w-10 h-10 rounded-md border border-border cursor-pointer"
+                    style={{ padding: 2 }}
+                  />
+                  <Input
+                    value={brandPrimaryColor}
+                    onChange={(e) => setBrandPrimaryColor(e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                    maxLength={7}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brand-secondary" className="text-sm text-muted-foreground">
+                  Couleur secondaire (couverture, fond)
+                </Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="brand-secondary"
+                    type="color"
+                    value={brandSecondaryColor}
+                    onChange={(e) => setBrandSecondaryColor(e.target.value)}
+                    className="w-10 h-10 rounded-md border border-border cursor-pointer"
+                    style={{ padding: 2 }}
+                  />
+                  <Input
+                    value={brandSecondaryColor}
+                    onChange={(e) => setBrandSecondaryColor(e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                    maxLength={7}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview bar */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Aperçu</Label>
+            <div className="flex rounded-lg overflow-hidden h-8">
+              <div className="flex-1" style={{ backgroundColor: brandSecondaryColor }} />
+              <div className="flex-1" style={{ backgroundColor: brandPrimaryColor }} />
+            </div>
+          </div>
+
+          {/* Save branding */}
+          <div className="flex justify-end pt-2">
+            <Button
+              className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
+              onClick={handleSaveBranding}
+              disabled={brandSaving}
+            >
+              {brandSaving ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...</>
+              ) : (
+                'Enregistrer l\'identité visuelle'
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Gestion des invitations */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Utilisateurs
-            </CardTitle>
-            <Button 
-              variant="outline" 
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Utilisateurs & Invitations
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Invitez des collaborateurs à rejoindre votre espace. Chaque invitation est liée à un abonnement avec date d'expiration.
+              </CardDescription>
+            </div>
+            <Button
               size="sm"
-              onClick={handleInviteUser} // 🔧 Added onClick
+              className="bg-[#059669] hover:bg-[#048558]"
+              onClick={() => setShowInviteForm(!showInviteForm)}
             >
-              Inviter un utilisateur
+              <UserPlus className="h-4 w-4 mr-2" />
+              Inviter
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{user.email}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{user.role}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={user.status === 'active' ? 'bg-[#059669] text-white' : 'bg-gray-400 text-white'}>
-                      {user.status === 'active' ? 'Actif' : 'Inactif'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleManageUser(user.name)} // 🔧 Added onClick
-                    >
-                      Gérer
-                    </Button>
-                  </TableCell>
+        <CardContent className="space-y-4">
+          {/* Invite Form */}
+          {showInviteForm && (
+            <div className="p-4 border border-[#059669]/30 bg-[#E8F3F0]/50 rounded-lg space-y-4">
+              <h4 className="font-medium flex items-center gap-2 text-[#0A3B2E]">
+                <Send className="h-4 w-4" />
+                Nouvelle invitation
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-email" className="flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5" /> Email
+                  </Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder="collaborateur@entreprise.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invite-role">Rôle</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger id="invite-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLIENT_OWNER">Directeur ESG</SelectItem>
+                      <SelectItem value="CONSULTANT">Consultant ESG</SelectItem>
+                      <SelectItem value="CLIENT_CONTRIBUTOR">Analyste données</SelectItem>
+                      <SelectItem value="AUDITOR">Auditeur externe</SelectItem>
+                      <SelectItem value="VIEWER">Observateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="invite-plan">Abonnement</Label>
+                  <Select value={invitePlan} onValueChange={(v) => setInvitePlan(v as SubscriptionPlan)}>
+                    <SelectTrigger id="invite-plan">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="trial">Essai gratuit (14 jours)</SelectItem>
+                      <SelectItem value="starter">Starter (1 an)</SelectItem>
+                      <SelectItem value="professional">Professionnel (1 an)</SelectItem>
+                      <SelectItem value="enterprise">Entreprise (2 ans)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setShowInviteForm(false)}>
+                  Annuler
+                </Button>
+                <Button
+                  className="bg-[#059669] hover:bg-[#048558]"
+                  onClick={handleInviteUser}
+                  disabled={inviteLoading}
+                >
+                  {inviteLoading ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Envoi...</>
+                  ) : (
+                    <><Send className="mr-2 h-4 w-4" /> Envoyer l'invitation</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Invitations Table */}
+          {invitations.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Rôle</TableHead>
+                  <TableHead>Abonnement</TableHead>
+                  <TableHead>Expiration</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {invitations.map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-medium text-sm">{inv.email}</TableCell>
+                    <TableCell>{getRoleBadge(inv.role)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {PLAN_LABELS[inv.subscriptionPlan]}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(inv.expiresAt).toLocaleDateString('fr-FR')}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(inv.status)}</TableCell>
+                    <TableCell>
+                      {inv.status === 'pending' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                          onClick={() => handleRevokeInvitation(inv)}
+                        >
+                          Révoquer
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Aucune invitation envoyée</p>
+              <p className="text-xs mt-1">
+                Cliquez sur "Inviter" pour ajouter des collaborateurs à votre espace.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -301,6 +1009,117 @@ export function Parametres() {
         </CardContent>
       </Card>
 
+      {/* Intelligence Artificielle */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Intelligence Artificielle
+          </CardTitle>
+          <CardDescription>
+            Configuration de l'assistant IA et des modèles Claude
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* API Key */}
+          <div className="space-y-2">
+            <Label htmlFor="ai-api-key">Clé API Anthropic</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="ai-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  placeholder="sk-ant-api03-..."
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Model selectors */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Modèle pour les rapports</Label>
+              <Select value={aiReportModel} onValueChange={setAiReportModel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_REPORT_MODELS.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Modèle pour les indicateurs</Label>
+              <Select value={aiIndicatorModel} onValueChange={setAiIndicatorModel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_INDICATOR_MODELS.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Status + Actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {aiStatus === "connected" && (
+                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                  Connecté
+                </Badge>
+              )}
+              {aiStatus === "none" && (
+                <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                  Non configuré
+                </Badge>
+              )}
+              {aiStatus === "invalid" && (
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                  Clé invalide
+                </Badge>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleTestAiConnection}
+                disabled={aiTesting}
+              >
+                {aiTesting ? "Test en cours..." : "Tester la connexion"}
+              </Button>
+              <Button
+                className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
+                onClick={handleSaveAiSettings}
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Données et exports */}
       <Card>
         <CardHeader>
@@ -317,7 +1136,7 @@ export function Parametres() {
                 Télécharger l'ensemble de vos données au format Excel
               </p>
             </div>
-            <Button variant="outline" onClick={handleExportAllData}> {/* 🔧 Added onClick */}
+            <Button variant="outline" onClick={handleExportAllData}>
               Exporter
             </Button>
           </div>
@@ -328,19 +1147,190 @@ export function Parametres() {
                 Créer une sauvegarde complète de votre espace de travail
               </p>
             </div>
-            <Button variant="outline" onClick={handleBackupDatabase}> {/* 🔧 Added onClick */}
+            <Button variant="outline" onClick={handleBackupDatabase}>
               Sauvegarder
             </Button>
           </div>
           <div className="flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg">
             <div>
-              <p className="font-medium mb-1 text-red-900">Supprimer toutes les données</p>
+              <p className="font-medium mb-1 text-red-900">Supprimer toutes les donnees</p>
               <p className="text-sm text-red-700">
-                Action irréversible - toutes vos données seront définitivement supprimées
+                Action irreversible - toutes vos donnees seront definitivement supprimees
               </p>
             </div>
-            <Button variant="destructive" onClick={handleDeleteAllData}> {/* 🔧 Added onClick */}
-              Supprimer
+            <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteConfirmInput(''); }}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Supprimer</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-red-900">Suppression definitive du compte</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-3">
+                    <span className="block">
+                      Cette action est <strong>irreversible</strong>. Toutes vos donnees personnelles, dossiers ESG,
+                      indicateurs, preuves et historiques seront definitivement supprimes conformement a l'article 17 du RGPD.
+                    </span>
+                    <span className="block font-medium text-red-800">
+                      Tapez SUPPRIMER pour confirmer :
+                    </span>
+                    <Input
+                      value={deleteConfirmInput}
+                      onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                      placeholder="SUPPRIMER"
+                      className="border-red-300 focus:border-red-500"
+                    />
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setDeleteConfirmInput('')}>Annuler</AlertDialogCancel>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteAllData}
+                    disabled={deleteConfirmInput !== 'SUPPRIMER' || deleteLoading}
+                  >
+                    {deleteLoading ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Suppression...</>
+                    ) : (
+                      <><Trash2 className="mr-2 h-4 w-4" /> Supprimer definitivement</>
+                    )}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Conformite RGPD */}
+      <Card className="border-blue-200/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ScrollText className="h-5 w-5" />
+            Conformite RGPD
+          </CardTitle>
+          <CardDescription>
+            Exercez vos droits sur vos donnees personnelles (articles 15, 17, 20 du RGPD)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Inventaire des donnees */}
+          <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+            <div>
+              <p className="font-medium mb-1">Inventaire de mes donnees</p>
+              <p className="text-sm text-muted-foreground">
+                Consultez la liste des donnees personnelles que nous conservons (Art. 15)
+              </p>
+            </div>
+            <Dialog open={inventoryOpen} onOpenChange={setInventoryOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={handleShowInventory}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Consulter
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Inventaire des donnees personnelles</DialogTitle>
+                  <DialogDescription>
+                    Conformement a l'article 15 du RGPD, voici l'ensemble des donnees que nous traitons.
+                  </DialogDescription>
+                </DialogHeader>
+                {inventoryLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Chargement...</span>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Categorie</TableHead>
+                        <TableHead>Type de donnees</TableHead>
+                        <TableHead>Finalite</TableHead>
+                        <TableHead>Conservation</TableHead>
+                        <TableHead className="text-right">Nb</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inventoryData.map((item, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{item.category}</TableCell>
+                          <TableCell className="text-sm">{item.dataType}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{item.purpose}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{item.retention}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline">{item.count}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Export des donnees */}
+          <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+            <div>
+              <p className="font-medium mb-1">Exporter mes donnees</p>
+              <p className="text-sm text-muted-foreground">
+                Telechargez toutes vos donnees au format JSON (Art. 20 - Portabilite)
+              </p>
+            </div>
+            <Button variant="outline" onClick={handleExportAllData}>
+              <Download className="h-4 w-4 mr-2" />
+              Exporter
+            </Button>
+          </div>
+
+          <Separator />
+
+          {/* Consentements */}
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Consentements</Label>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Conditions Generales d'Utilisation (CGU)</Label>
+                <p className="text-sm text-muted-foreground">
+                  {user.currentUser?.consentCGU
+                    ? `Acceptees le ${new Date(user.currentUser.consentCGU).toLocaleDateString('fr-FR')}`
+                    : 'Non acceptees'}
+                </p>
+              </div>
+              <Switch
+                checked={!!user.currentUser?.consentCGU}
+                onCheckedChange={(v) => handleConsentToggle('cgu', v)}
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Traitement IA des donnees</Label>
+                <p className="text-sm text-muted-foreground">
+                  {user.currentUser?.consentAI
+                    ? `Autorise le ${new Date(user.currentUser.consentAI).toLocaleDateString('fr-FR')}`
+                    : "L'IA ne traitera pas vos donnees sans votre consentement"}
+                </p>
+              </div>
+              <Switch
+                checked={!!user.currentUser?.consentAI}
+                onCheckedChange={(v) => handleConsentToggle('ai', v)}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Liens CGU / Politique de confidentialite */}
+          <div className="flex flex-wrap gap-4">
+            <Button variant="link" className="text-[#059669] p-0 h-auto" onClick={() => toast.info("CGU", { description: "Ouverture des CGU..." })}>
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              Conditions Generales d'Utilisation
+            </Button>
+            <Button variant="link" className="text-[#059669] p-0 h-auto" onClick={() => toast.info("Politique de confidentialite", { description: "Ouverture de la politique de confidentialite..." })}>
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              Politique de confidentialite
             </Button>
           </div>
         </CardContent>
@@ -362,10 +1352,10 @@ export function Parametres() {
                 Guides d'utilisation et tutoriels
               </p>
             </div>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={handleOpenDocumentation} // 🔧 Added onClick
+              onClick={handleOpenDocumentation}
             >
               Consulter
             </Button>
@@ -377,10 +1367,10 @@ export function Parametres() {
                 Équipe disponible du lundi au vendredi, 9h-18h
               </p>
             </div>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={handleContactSupport} // 🔧 Added onClick
+              onClick={handleContactSupport}
             >
               Contacter
             </Button>
@@ -392,10 +1382,10 @@ export function Parametres() {
                 Session personnalisée avec un expert CSRD
               </p>
             </div>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
-              onClick={handleScheduleDemo} // 🔧 Added onClick
+              onClick={handleScheduleDemo}
             >
               Planifier
             </Button>

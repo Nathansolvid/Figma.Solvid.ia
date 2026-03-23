@@ -80,7 +80,7 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Preuves & Documents</h1>
+            <h1 className="text-3xl font-bold mb-2">Justificatifs & Documents</h1>
             <p className="text-muted-foreground">
               Centralisez vos justificatifs : factures, contrats, rapports, photos...
             </p>
@@ -93,14 +93,14 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
               <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
                 <Paperclip className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Aucune preuve uploadée</h3>
+              <h3 className="text-xl font-semibold mb-3">Aucun justificatif uploadé</h3>
               <p className="text-muted-foreground mb-6">
                 Uploadez vos documents justificatifs pour garantir l'auditabilité de vos données ESG.
                 Formats acceptés : PDF, Excel, images, etc.
               </p>
               <Button onClick={() => setUploadDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
-                Uploader ma première preuve
+                Uploader mon premier justificatif
               </Button>
               <div className="mt-8 pt-8 border-t">
                 <p className="text-sm text-muted-foreground mb-4">
@@ -150,7 +150,7 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
                 period: uploadForm.period || undefined,
                 linkedIndicators: uploadForm.linkedIndicators,
               });
-              toast.success("Preuve uploadée avec succès");
+              toast.success("Justificatif uploadé avec succès");
               setUploadDialogOpen(false);
               setSelectedFile(null);
               setUploadForm({ category: '', period: '', linkedIndicators: [] });
@@ -200,14 +200,14 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Preuves & Documents</h1>
+          <h1 className="text-3xl font-bold mb-2">Justificatifs & Documents</h1>
           <p className="text-muted-foreground">
             Centralisez vos justificatifs : factures, contrats, rapports, photos...
           </p>
         </div>
         <Button onClick={() => setUploadDialogOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />
-          Uploader une preuve
+          Uploader un justificatif
         </Button>
       </div>
 
@@ -384,10 +384,10 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
                         variant="ghost"
                         size="sm"
                         onClick={async () => {
-                          if (!confirm("Supprimer cette preuve ?")) return;
+                          if (!confirm("Supprimer ce justificatif ?")) return;
                           try {
                             await deleteEvidence(ev.id);
-                            toast.success("Preuve supprimée");
+                            toast.success("Justificatif supprimé");
                           } catch (error) {
                             toast.error("Erreur lors de la suppression");
                           }
@@ -425,7 +425,7 @@ export function EvidenceVault({ packId }: EvidenceVaultProps) {
               period: uploadForm.period || undefined,
               linkedIndicators: uploadForm.linkedIndicators,
             });
-            toast.success("Preuve uploadée avec succès");
+            toast.success("Justificatif uploadé avec succès");
             setUploadDialogOpen(false);
             setSelectedFile(null);
             setUploadForm({ category: '', period: '', linkedIndicators: [] });
@@ -469,9 +469,9 @@ function UploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Uploader une preuve</DialogTitle>
+          <DialogTitle>Uploader un justificatif</DialogTitle>
           <DialogDescription>
-            Ajoutez un document justificatif à votre base de preuves
+            Ajoutez un document justificatif à votre base de justificatifs
           </DialogDescription>
         </DialogHeader>
 

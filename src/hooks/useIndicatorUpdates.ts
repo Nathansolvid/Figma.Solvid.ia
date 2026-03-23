@@ -64,28 +64,23 @@ export function useIndicatorUpdates({
         // 🆕 Also update the corresponding checklist_item if it exists
         if (updates.status) {
           try {
-            console.log('🔍 Looking for checklist_item to sync:', { code: indicator.code, packId: indicator.packId, status: updates.status });
             
             // Find the checklist item with the same code and packId
             const allChecklistItems = await dataProvider.store.list('checklist_items');
-            console.log('📋 Total checklist_items in DB:', allChecklistItems.length);
             
             const checklistItem = allChecklistItems.find((item: any) => 
               item.packId === indicator.packId && item.code === indicator.code
             );
             
             if (checklistItem) {
-              console.log('✅ Found matching checklist_item:', checklistItem.id);
               const updatedChecklistItem = {
                 ...checklistItem,
                 status: updates.status.toUpperCase(), // Convert to uppercase for checklist_items
                 updatedAt: new Date().toISOString(),
               };
               await dataProvider.store.update('checklist_items', updatedChecklistItem);
-              console.log('✅ Checklist item also updated:', { checklistItemId: checklistItem.id, status: updates.status });
             } else {
               // No matching checklist_item - this is normal for calculated KPIs or indicators without checklist items
-              console.log('ℹ️ No checklist_item for indicator code:', indicator.code, '(normal for calculated KPIs)');
             }
           } catch (error) {
             console.error('❌ Error updating checklist_item:', error);
@@ -97,7 +92,6 @@ export function useIndicatorUpdates({
         }
 
         // 🆕 Emit event to trigger dashboard reload
-        console.log('✅ Indicator updated - emitting checklist-updated event', { indicatorId, packId: indicator.packId });
         window.dispatchEvent(new CustomEvent('checklist-updated', { 
           detail: { itemId: indicatorId, packId: indicator.packId } 
         }));

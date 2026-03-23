@@ -23,9 +23,6 @@ export interface FeatureFlags {
   /** Connecteurs ERP/SIRH - V2 */
   connectors: boolean;
   
-  /** Module EUDR deep-tech - V2+ */
-  eudrAdvanced: boolean;
-  
   /** Vue multi-normes (GRI/CSRD/SFDR) - V2 */
   multiNormesView: boolean;
   
@@ -62,11 +59,10 @@ export const defaultFeatureFlags: FeatureFlags = {
   packs: true,
   
   // HIDDEN/EXPERIMENTAL - Désactivé par défaut
-  aiAssistant: false,           // IA OFF par défaut (voir CUT_LIST.md)
+  aiAssistant: true,            // IA activée
   csrdFull: false,              // CSRD exhaustif supprimé
-  advancedDash: false,          // Dashboards avancés cachés
-  connectors: false,            // Connecteurs ERP/SIRH V2
-  eudrAdvanced: false,          // EUDR deep-tech V2+
+  advancedDash: true,           // Dashboards avancés activés
+  connectors: true,             // Connecteurs ERP/SIRH activés
   multiNormesView: false,       // Multi-normes V2
   benchmarkingSectoriel: false, // Benchmarking V2+
   
@@ -76,9 +72,9 @@ export const defaultFeatureFlags: FeatureFlags = {
   completenessScore: true,      // Activé dès V1
   
   // EXPERIMENTAL - Désactivé
-  realTimeNotifications: false,
+  realTimeNotifications: true,
   customReportTemplates: false,
-  autoMapping: false
+  autoMapping: true
 };
 
 /**
@@ -143,8 +139,8 @@ export function isFeatureEnabledWithContext(
   // Règles contextuelles spécifiques
   switch (featureName) {
     case 'aiAssistant':
-      // IA uniquement en mode Conseil
-      return context.posture === 'Conseil';
+      // IA accessible dans tous les modes (Conseil, Pré-audit, Audit)
+      return true;
       
     case 'auditSampling':
       // Échantillonnage uniquement pour rôle Auditeur
@@ -168,7 +164,6 @@ export function getFeatureLabel(featureName: keyof FeatureFlags): string {
     csrdFull: 'CSRD Full Coverage',
     advancedDash: 'Dashboards Avancés',
     connectors: 'Connecteurs ERP/SIRH',
-    eudrAdvanced: 'Module EUDR Avancé',
     multiNormesView: 'Vue Multi-Normes',
     benchmarkingSectoriel: 'Benchmarking Sectoriel',
     bulkImport: 'Import en Masse',
@@ -195,7 +190,6 @@ export function getFeatureDescription(featureName: keyof FeatureFlags): string {
     csrdFull: 'Couverture complète ESRS (supprimé du repositionnement)',
     advancedDash: 'Dashboards ESG avancés avec scoring sophistiqué',
     connectors: 'Connecteurs vers ERP/SIRH pour import automatique',
-    eudrAdvanced: 'Module EUDR avancé (cartographie supply chain, géolocalisation)',
     multiNormesView: 'Basculer entre GRI, CSRD, SFDR dans la même interface',
     benchmarkingSectoriel: 'Comparer les performances ESG avec le secteur',
     bulkImport: 'Importer plusieurs fichiers simultanément',
@@ -222,7 +216,6 @@ export function getFeatureStatus(featureName: keyof FeatureFlags): string {
     csrdFull: 'Supprimé',
     advancedDash: 'V2',
     connectors: 'V2',
-    eudrAdvanced: 'V2+',
     multiNormesView: 'V2',
     benchmarkingSectoriel: 'V2+',
     bulkImport: 'V1.1',

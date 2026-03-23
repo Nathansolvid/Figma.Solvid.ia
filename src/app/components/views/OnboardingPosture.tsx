@@ -63,7 +63,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
             }`}>
               {step > 2 ? <CheckCircle2 className="h-5 w-5" /> : <span className="font-semibold">2</span>}
             </div>
-            <span className="font-medium">Posture d'utilisation</span>
+            <span className="font-medium">Mode d'utilisation</span>
           </div>
         </div>
 
@@ -107,7 +107,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
                             <div className="space-y-1 text-sm">
                               <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-[#059669]" />
-                                <span>Double matérialité obligatoire</span>
+                                <span>Analyse d'impact croisée obligatoire</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-[#059669]" />
@@ -132,7 +132,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
                               </div>
                               <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-[#059669]" />
-                                <span>Audit-ready complet</span>
+                                <span>Prêt pour vérification complet</span>
                               </div>
                             </div>
                           </div>
@@ -239,7 +239,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
           <div className="space-y-6">
             <Card className="border-2">
               <CardHeader>
-                <CardTitle className="text-2xl">Quelle est votre posture d'utilisation ?</CardTitle>
+                <CardTitle className="text-2xl">Quel est votre mode d'utilisation ?</CardTitle>
                 <p className="text-muted-foreground mt-2">
                   Ce choix détermine les fonctionnalités actives, le niveau de détail et les contrôles affichés
                 </p>
@@ -270,7 +270,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
                         <div className="grid grid-cols-3 gap-3 text-sm">
                           <div>
                             <p className="font-medium mb-1">Fonctionnalités</p>
-                            <p className="text-muted-foreground">Édition complète, imports, workflows</p>
+                            <p className="text-muted-foreground">Édition complète, imports, parcours ESG</p>
                           </div>
                           <div>
                             <p className="font-medium mb-1">Vue prioritaire</p>
@@ -356,7 +356,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
                           </div>
                           <div>
                             <p className="font-medium mb-1">Vue prioritaire</p>
-                            <p className="text-muted-foreground">Tests, échantillons, preuves</p>
+                            <p className="text-muted-foreground">Tests, échantillons, justificatifs</p>
                           </div>
                           <div>
                             <p className="font-medium mb-1">Contrôles</p>
@@ -374,7 +374,7 @@ export function OnboardingPosture({ onComplete }: OnboardingPostureProps) {
                     <div className="flex items-start gap-3">
                       <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                       <p className="text-sm text-blue-900">
-                        <strong>Bon à savoir :</strong> Vous pourrez changer de posture à tout moment selon votre besoin. 
+                        <strong>Bon à savoir :</strong> Vous pourrez changer de mode à tout moment selon votre besoin. 
                         Les données restent identiques, seule l'interface et les fonctionnalités s'adaptent.
                       </p>
                     </div>

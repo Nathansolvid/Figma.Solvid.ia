@@ -37,14 +37,6 @@ class EvidenceService {
     userRole: string
   ): Promise<Evidence> {
     try {
-      console.log('📤 Uploading evidence (LOCAL):', {
-        fileName: file.name,
-        fileSize: file.size,
-        entityType,
-        entityId,
-        packId,
-      });
-
       // Convert file to base64 for local storage
       const base64Data = await this.fileToBase64(file);
 
@@ -118,7 +110,6 @@ class EvidenceService {
         createdAt: new Date().toISOString(),
       });
 
-      console.log('✅ Evidence uploaded (LOCAL):', evidence.id);
       toast.success('Preuve ajoutée', {
         description: file.name,
       });

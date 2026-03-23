@@ -43,7 +43,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
 
     try {
       setLoading(true);
-      console.log('🔔 Loading notifications (LOCAL) for user:', currentUser.id);
 
       // Get all notifications for current user
       const allNotifications = await dataProvider.store.listByIndex(
@@ -63,7 +62,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
       const unread = sorted.filter(n => !n.read).length;
       setUnreadCount(unread);
 
-      console.log(`✅ Loaded ${sorted.length} notifications (${unread} unread)`);
     } catch (error) {
       console.error('❌ Load notifications error:', error);
       toast.error('Erreur lors du chargement des notifications');
@@ -107,7 +105,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
 
-      console.log('✅ Notification marked as read:', notificationId);
     } catch (error) {
       console.error('❌ Mark as read error:', error);
       toast.error('Erreur lors de la mise à jour');
@@ -133,7 +130,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
       setUnreadCount(0);
 
       toast.success('Toutes les notifications ont été marquées comme lues');
-      console.log('✅ All notifications marked as read');
     } catch (error) {
       console.error('❌ Mark all as read error:', error);
       toast.error('Erreur lors de la mise à jour');
@@ -156,7 +152,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
       }
 
       toast.success('Notification supprimée');
-      console.log('✅ Notification deleted:', notificationId);
     } catch (error) {
       console.error('❌ Delete notification error:', error);
       toast.error('Erreur lors de la suppression');
@@ -165,7 +160,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
 
   // Handle notification click
   const handleNotificationClick = (notification: Notification) => {
-    console.log('🔔 Notification clicked:', notification);
     
     // Mark as read
     if (!notification.read) {
@@ -188,7 +182,6 @@ export function NotificationBell({ currentUserId, onNotificationClick, onNavigat
         toast.info(target.message);
       }
       
-      console.log('🧭 Navigating to:', target);
     } else if (!target) {
       // Fallback: no navigation target found
       toast.info('Notification consultée');

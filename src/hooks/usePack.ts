@@ -17,24 +17,11 @@ export function usePacks() {
   const result = useQuery({
     queryKey: packKeys.lists(),
     queryFn: async () => {
-      console.log('📦 usePacks - Fetching packs list...');
       const response = await apiClient.listPacksDirect();
-      console.log('📦 usePacks - Response:', {
-        packsCount: response?.packs?.length || 0,
-        packs: response?.packs || [],
-      });
       return response.packs;
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - packs list changes frequently
     retry: false, // Disable retry to see errors faster
-  });
-
-  console.log('📦 usePacks - Hook result:', {
-    dataLength: result.data?.length || 0,
-    isLoading: result.isLoading,
-    isFetching: result.isFetching,
-    error: result.error,
-    status: result.status,
   });
 
   return result;

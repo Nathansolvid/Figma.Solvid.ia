@@ -1,11 +1,12 @@
 // Moteur de calcul pour indicateurs avec recalcul automatique
 
-import { 
-  Indicator, 
-  CalculationMethod, 
-  CalculationStep, 
-  SourceDataLine, 
-  RecalculationResult 
+import { evaluate as mathEvaluate } from 'mathjs';
+import {
+  Indicator,
+  CalculationMethod,
+  CalculationStep,
+  SourceDataLine,
+  RecalculationResult
 } from "@/types/indicators";
 
 /**
@@ -116,20 +117,19 @@ function calculateFormula(
 }
 
 /**
- * Évalue une expression mathématique de manière sécurisée
- * En production, utiliser mathjs ou une lib similaire
+ * Évalue une expression mathématique de manière sécurisée via mathjs
+ * Pas de new Function() / eval() — uniquement des opérations numériques sandboxées
  */
 function evaluateSafely(expression: string): number {
-  // Validation : autoriser uniquement nombres, opérateurs, parenthèses
+  // Validation préliminaire : autoriser uniquement nombres, opérateurs, parenthèses
   const safeRegex = /^[\d+\-*/(). ]+$/;
   if (!safeRegex.test(expression)) {
     throw new Error("Expression non sécurisée");
   }
 
   try {
-    // Utilisation temporaire de Function (remplacer par mathjs en prod)
-    const result = new Function(`return ${expression}`)();
-    return typeof result === "number" ? result : 0;
+    const result = mathEvaluate(expression);
+    return typeof result === "number" && isFinite(result) ? result : 0;
   } catch (error) {
     console.error("Erreur évaluation expression:", error);
     return 0;

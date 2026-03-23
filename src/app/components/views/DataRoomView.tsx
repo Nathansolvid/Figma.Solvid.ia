@@ -36,7 +36,7 @@ export function DataRoomView({ dossierId }: DataRoomViewProps) {
         </TabsContent>
 
         <TabsContent value="evidence">
-          <EvidenceVault />
+          <EvidenceVault packId={dossierId || "default-dossier"} />
         </TabsContent>
       </Tabs>
     </div>
