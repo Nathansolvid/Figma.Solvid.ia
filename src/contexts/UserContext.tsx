@@ -108,6 +108,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setSubscriptionExpired(false);
 
     if (user) {
+      (window as any).__solvid_current_user_name = user.name;
       collaborationService.initialize(user.id, user.name);
       const subCheck = invitationService.checkSubscription(user.id);
       if (subCheck.info) {

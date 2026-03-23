@@ -212,6 +212,7 @@ export function VSMEDataProvider({ children }: { children: ReactNode }) {
 
       // Persister la valeur principale (avec période)
       const now = new Date().toISOString();
+      const oldValue = dossierData.values[code] || '';
       const vsmeVal: VSMEValue = {
         id: makeValueId(dossierId, code, p),
         dossierId,
@@ -222,6 +223,25 @@ export function VSMEDataProvider({ children }: { children: ReactNode }) {
         period: p,
       };
       idbPutValue(vsmeVal);
+
+      // ── Audit trail: log every field change ──────────────────────────
+      if (oldValue !== raw) {
+        const auditKey = `solvid_audit_${dossierId}`;
+        try {
+          const existing = JSON.parse(localStorage.getItem(auditKey) || '[]');
+          existing.push({
+            code,
+            period: p,
+            oldValue,
+            newValue: raw,
+            timestamp: now,
+            userId: (window as any).__solvid_current_user_name || 'unknown',
+          });
+          // Keep last 500 entries per dossier to avoid localStorage bloat
+          if (existing.length > 500) existing.splice(0, existing.length - 500);
+          localStorage.setItem(auditKey, JSON.stringify(existing));
+        } catch { /* ignore storage errors */ }
+      }
 
       // Persister les computed aussi
       for (const [computedCode] of Object.entries(COMPUTED_FORMULAS)) {
