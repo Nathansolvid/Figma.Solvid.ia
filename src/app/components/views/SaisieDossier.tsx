@@ -794,6 +794,14 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
 
   const defaultTab = visibleOnglets[0]?.id ?? "energie";
   const [activeTab, setActiveTab]       = useState(defaultTab);
+
+  // Sync activeTab when workflow filter changes (fixes empty content bug)
+  useEffect(() => {
+    if (visibleOnglets.length > 0 && !visibleOnglets.some(t => t.id === activeTab)) {
+      setActiveTab(visibleOnglets[0].id);
+    }
+  }, [visibleOnglets, activeTab]);
+
   const [saveIndicator, setSaveIndicator] = useState(false);
   const [aiPanel, setAiPanel]           = useState<AIPanel | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
