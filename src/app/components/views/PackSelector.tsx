@@ -187,8 +187,9 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
               {existingPacks.map((pack: any) => (
                 <div
                   key={pack.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  onMouseEnter={() => prefetchPack(pack.id)} // 🆕 Prefetch on hover
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  onMouseEnter={() => prefetchPack(pack.id)}
+                  onClick={() => onPackCreated?.(pack)}
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <Package className="h-5 w-5 text-[#059669]" />
@@ -199,15 +200,7 @@ export function PackSelector({ dossierId, dossierName, onPackCreated, onClose }:
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onPackCreated?.(pack)}
-                    >
-                      <FolderOpen className="h-4 w-4 mr-1" />
-                      Ouvrir
-                    </Button>
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="sm"

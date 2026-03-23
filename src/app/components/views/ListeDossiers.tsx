@@ -293,7 +293,7 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier, onSaisirDossier 
                     dossier.completeness >= 40 ? "#f59e0b" :
                     "#9ca3af";
                   return (
-                    <TableRow key={dossier.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableRow key={dossier.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onOpenDossier(dossier.id)}>
                       <TableCell className="font-medium">{dossier.name}</TableCell>
                       <TableCell>{dossier.clientOrg}</TableCell>
                       <TableCell>{dossier.fiscalYear}</TableCell>
@@ -337,15 +337,8 @@ export function ListeDossiers({ onCreateDossier, onOpenDossier, onSaisirDossier 
                         {dossier.createdAt}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onOpenDossier(dossier.id)}
-                          >
-                            Ouvrir
-                          </Button>
-                          {/* 🆕 Bouton saisie directe */}
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          {/* Saisie directe — row click opens dossier */}
                           {onSaisirDossier && (
                             <Button
                               size="sm"
