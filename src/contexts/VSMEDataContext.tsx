@@ -224,23 +224,42 @@ export function VSMEDataProvider({ children }: { children: ReactNode }) {
       };
       idbPutValue(vsmeVal);
 
-      // ── Audit trail: log every field change ──────────────────────────
+      // ── Audit trail: debounced — only log final value after user stops typing
       if (oldValue !== raw) {
-        const auditKey = `solvid_audit_${dossierId}`;
-        try {
-          const existing = JSON.parse(localStorage.getItem(auditKey) || '[]');
-          existing.push({
-            code,
-            period: p,
-            oldValue,
-            newValue: raw,
-            timestamp: now,
-            userId: (window as any).__solvid_current_user_name || 'unknown',
-          });
-          // Keep last 500 entries per dossier to avoid localStorage bloat
-          if (existing.length > 500) existing.splice(0, existing.length - 500);
-          localStorage.setItem(auditKey, JSON.stringify(existing));
-        } catch { /* ignore storage errors */ }
+        const auditTimerKey = `__audit_timer_${dossierId}_${code}`;
+        const auditStartKey = `__audit_start_${dossierId}_${code}`;
+        // Store the "before" value on first keystroke
+        if (!(window as any)[auditStartKey]) {
+          (window as any)[auditStartKey] = oldValue;
+        }
+        // Clear previous timer
+        if ((window as any)[auditTimerKey]) {
+          clearTimeout((window as any)[auditTimerKey]);
+        }
+        // Set new timer — log after 1.5s of inactivity
+        (window as any)[auditTimerKey] = setTimeout(() => {
+          const startValue = (window as any)[auditStartKey] ?? '';
+          const finalValue = raw;
+          if (startValue !== finalValue) {
+            const auditKey = `solvid_audit_${dossierId}`;
+            try {
+              const existing = JSON.parse(localStorage.getItem(auditKey) || '[]');
+              existing.push({
+                code,
+                period: p,
+                oldValue: startValue,
+                newValue: finalValue,
+                timestamp: new Date().toISOString(),
+                userId: (window as any).__solvid_current_user_name || 'unknown',
+              });
+              if (existing.length > 500) existing.splice(0, existing.length - 500);
+              localStorage.setItem(auditKey, JSON.stringify(existing));
+            } catch { /* ignore */ }
+          }
+          // Reset start value
+          delete (window as any)[auditStartKey];
+          delete (window as any)[auditTimerKey];
+        }, 1500);
       }
 
       // Persister les computed aussi
