@@ -1,16 +1,12 @@
 /**
- * COLLABORATION SERVICE - Simulation de WebSocket pour collaboration temps réel
- * 
- * Fonctionnalités :
- * - Broadcast des modifications
- * - Détection des conflits
- * - Indicateur d'activité utilisateur
- * - Synchronisation automatique
- * 
- * Note: En mode local, utilise BroadcastChannel pour simuler WebSocket
+ * COLLABORATION SERVICE - Real-time collaboration via Supabase Realtime + BroadcastChannel fallback
+ *
+ * Multi-user: Supabase Realtime (Presence + Broadcast channels)
+ * Same-browser: BroadcastChannel fallback when Supabase unavailable
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type CollaborationEvent =
   | { type: 'user_joined'; userId: string; userName: string; timestamp: string }
@@ -27,23 +23,29 @@ export interface ActiveUser {
   lastSeen: string;
   currentPack?: string;
   isEditing?: boolean;
+  isOnline?: boolean;
 }
 
 class CollaborationService {
   private static instance: CollaborationService;
-  private channel: BroadcastChannel | null = null;
+
+  // Channels
+  private localChannel: BroadcastChannel | null = null;
+  private supabaseChannel: RealtimeChannel | null = null;
+  private useSupabase = false;
+
+  // State
   private listeners: Map<string, Set<(event: CollaborationEvent) => void>> = new Map();
   private activeUsers: Map<string, ActiveUser> = new Map();
-  private currentUserId: string = '';
-  private currentUserName: string = '';
+  private currentUserId = '';
+  private currentUserName = '';
+  private orgId = '';
 
   private constructor() {
-    // Check if BroadcastChannel is supported
+    // BroadcastChannel as local fallback
     if (typeof BroadcastChannel !== 'undefined') {
-      this.channel = new BroadcastChannel('solvid-collaboration');
-      this.setupMessageHandler();
-    } else {
-      console.warn('⚠️ BroadcastChannel not supported, collaboration disabled');
+      this.localChannel = new BroadcastChannel('solvid-collaboration');
+      this.setupLocalHandler();
     }
   }
 
@@ -54,12 +56,15 @@ class CollaborationService {
     return CollaborationService.instance;
   }
 
-  /**
-   * Initialize collaboration for a user
-   */
-  initialize(userId: string, userName: string) {
+  // ─── Initialize ───────────────────────────────────────────────────────────
+
+  initialize(userId: string, userName: string, organizationId?: string) {
     this.currentUserId = userId;
     this.currentUserName = userName;
+    this.orgId = organizationId || '';
+
+    // Try Supabase Realtime for multi-user collaboration
+    this.initSupabaseRealtime();
 
     // Broadcast user joined
     this.broadcast({
@@ -68,168 +73,235 @@ class CollaborationService {
       userName,
       timestamp: new Date().toISOString(),
     });
-
   }
 
-  /**
-   * Setup message handler for incoming events
-   */
-  private setupMessageHandler() {
-    if (!this.channel) return;
+  // ─── Supabase Realtime ────────────────────────────────────────────────────
 
-    this.channel.onmessage = (event) => {
-      const collabEvent = event.data as CollaborationEvent;
-      
+  private initSupabaseRealtime() {
+    try {
+      const channelName = this.orgId ? `collab:${this.orgId}` : 'collab:global';
 
-      // Update active users
-      if (collabEvent.type === 'user_joined') {
-        this.activeUsers.set(collabEvent.userId, {
-          userId: collabEvent.userId,
-          userName: collabEvent.userName,
-          lastSeen: collabEvent.timestamp,
-        });
-      } else if (collabEvent.type === 'user_left') {
-        this.activeUsers.delete(collabEvent.userId);
-      } else if ('userId' in collabEvent) {
-        // Update lastSeen for any user activity
-        const user = this.activeUsers.get(collabEvent.userId);
-        if (user) {
-          user.lastSeen = collabEvent.timestamp;
-          if ('packId' in collabEvent) {
-            user.currentPack = collabEvent.packId;
+      this.supabaseChannel = supabase.channel(channelName, {
+        config: { presence: { key: this.currentUserId } },
+      });
+
+      // Presence: track who's online
+      this.supabaseChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = this.supabaseChannel?.presenceState() || {};
+          // Update active users from presence
+          const onlineIds = new Set<string>();
+          for (const [, presences] of Object.entries(state)) {
+            for (const p of presences as Array<{ userId: string; userName: string }>) {
+              if (p.userId && p.userId !== this.currentUserId) {
+                onlineIds.add(p.userId);
+                this.activeUsers.set(p.userId, {
+                  userId: p.userId,
+                  userName: p.userName || 'Utilisateur',
+                  lastSeen: new Date().toISOString(),
+                  isOnline: true,
+                });
+              }
+            }
           }
+          // Mark users not in presence as offline
+          for (const [uid, user] of this.activeUsers) {
+            if (!onlineIds.has(uid)) user.isOnline = false;
+          }
+        })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          for (const p of newPresences as Array<{ userId: string; userName: string }>) {
+            if (p.userId && p.userId !== this.currentUserId) {
+              this.activeUsers.set(p.userId, {
+                userId: p.userId,
+                userName: p.userName || 'Utilisateur',
+                lastSeen: new Date().toISOString(),
+                isOnline: true,
+              });
+              this.notifyListeners({
+                type: 'user_joined',
+                userId: p.userId,
+                userName: p.userName || 'Utilisateur',
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+          for (const p of leftPresences as Array<{ userId: string }>) {
+            if (p.userId) {
+              const user = this.activeUsers.get(p.userId);
+              if (user) user.isOnline = false;
+              this.notifyListeners({
+                type: 'user_left',
+                userId: p.userId,
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+        });
+
+      // Broadcast: receive collaboration events from other users
+      this.supabaseChannel.on('broadcast', { event: 'collab_event' }, ({ payload }) => {
+        const collabEvent = payload as CollaborationEvent;
+        if ('userId' in collabEvent && collabEvent.userId === this.currentUserId) return; // Ignore own
+        this.handleIncomingEvent(collabEvent);
+      });
+
+      // Subscribe and track presence
+      this.supabaseChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          this.useSupabase = true;
+          await this.supabaseChannel?.track({
+            userId: this.currentUserId,
+            userName: this.currentUserName,
+            online_at: new Date().toISOString(),
+          });
+          console.log('[Collab] Supabase Realtime connected');
         }
-      }
+      });
+    } catch (err) {
+      console.warn('[Collab] Supabase Realtime unavailable, using local only:', err);
+      this.useSupabase = false;
+    }
+  }
 
-      // Notify listeners
-      const eventTypeListeners = this.listeners.get(collabEvent.type);
-      if (eventTypeListeners) {
-        eventTypeListeners.forEach(listener => listener(collabEvent));
-      }
+  // ─── Local BroadcastChannel ───────────────────────────────────────────────
 
-      // Notify 'all' listeners
-      const allListeners = this.listeners.get('all');
-      if (allListeners) {
-        allListeners.forEach(listener => listener(collabEvent));
-      }
+  private setupLocalHandler() {
+    if (!this.localChannel) return;
+    this.localChannel.onmessage = (event) => {
+      const collabEvent = event.data as CollaborationEvent;
+      this.handleIncomingEvent(collabEvent);
     };
   }
 
-  /**
-   * Broadcast an event to all connected users
-   */
-  broadcast(event: CollaborationEvent) {
-    if (!this.channel) {
-      return;
+  // ─── Event handling ───────────────────────────────────────────────────────
+
+  private handleIncomingEvent(event: CollaborationEvent) {
+    // Update active users
+    if (event.type === 'user_joined') {
+      this.activeUsers.set(event.userId, {
+        userId: event.userId,
+        userName: event.userName,
+        lastSeen: event.timestamp,
+        isOnline: true,
+      });
+    } else if (event.type === 'user_left') {
+      const user = this.activeUsers.get(event.userId);
+      if (user) user.isOnline = false;
+    } else if ('userId' in event) {
+      const user = this.activeUsers.get(event.userId);
+      if (user) {
+        user.lastSeen = event.timestamp;
+        if ('packId' in event) user.currentPack = event.packId;
+      }
     }
 
-    this.channel.postMessage(event);
+    this.notifyListeners(event);
   }
 
-  /**
-   * Subscribe to specific event types
-   */
+  private notifyListeners(event: CollaborationEvent) {
+    this.listeners.get(event.type)?.forEach(cb => cb(event));
+    this.listeners.get('all')?.forEach(cb => cb(event));
+  }
+
+  // ─── Broadcast ────────────────────────────────────────────────────────────
+
+  broadcast(event: CollaborationEvent) {
+    // Send via Supabase Realtime (multi-user)
+    if (this.useSupabase && this.supabaseChannel) {
+      this.supabaseChannel.send({
+        type: 'broadcast',
+        event: 'collab_event',
+        payload: event,
+      });
+    }
+
+    // Also send via local BroadcastChannel (same-browser tabs)
+    if (this.localChannel) {
+      try {
+        this.localChannel.postMessage(event);
+      } catch { /* channel may be closed */ }
+    }
+  }
+
+  // ─── Subscribe ────────────────────────────────────────────────────────────
+
   subscribe(
     eventType: CollaborationEvent['type'] | 'all',
-    callback: (event: CollaborationEvent) => void
+    callback: (event: CollaborationEvent) => void,
   ): () => void {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, new Set());
     }
-
     this.listeners.get(eventType)!.add(callback);
-
-    // Return unsubscribe function
-    return () => {
-      this.listeners.get(eventType)?.delete(callback);
-    };
+    return () => { this.listeners.get(eventType)?.delete(callback); };
   }
 
-  /**
-   * Notify about indicator update
-   */
+  // ─── Notify helpers ───────────────────────────────────────────────────────
+
   notifyIndicatorUpdate(packId: string, indicatorId: string) {
     this.broadcast({
-      type: 'indicator_updated',
-      packId,
-      indicatorId,
-      userId: this.currentUserId,
-      userName: this.currentUserName,
+      type: 'indicator_updated', packId, indicatorId,
+      userId: this.currentUserId, userName: this.currentUserName,
       timestamp: new Date().toISOString(),
     });
   }
 
-  /**
-   * Notify about comment update
-   */
   notifyCommentUpdate(packId: string, indicatorId: string, comment: string) {
     this.broadcast({
-      type: 'comment_updated',
-      packId,
-      indicatorId,
-      userId: this.currentUserId,
-      userName: this.currentUserName,
-      comment,
+      type: 'comment_updated', packId, indicatorId, comment,
+      userId: this.currentUserId, userName: this.currentUserName,
       timestamp: new Date().toISOString(),
     });
   }
 
-  /**
-   * Notify about evidence upload
-   */
   notifyEvidenceUpload(packId: string, indicatorId: string) {
     this.broadcast({
-      type: 'evidence_uploaded',
-      packId,
-      indicatorId,
-      userId: this.currentUserId,
-      userName: this.currentUserName,
+      type: 'evidence_uploaded', packId, indicatorId,
+      userId: this.currentUserId, userName: this.currentUserName,
       timestamp: new Date().toISOString(),
     });
   }
 
-  /**
-   * Notify about pack update
-   */
   notifyPackUpdate(packId: string) {
     this.broadcast({
-      type: 'pack_updated',
-      packId,
-      userId: this.currentUserId,
-      userName: this.currentUserName,
+      type: 'pack_updated', packId,
+      userId: this.currentUserId, userName: this.currentUserName,
       timestamp: new Date().toISOString(),
     });
   }
 
-  /**
-   * Get list of active users
-   */
+  // ─── Active Users ─────────────────────────────────────────────────────────
+
   getActiveUsers(): ActiveUser[] {
-    // Remove users not seen in last 5 minutes
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
-    Array.from(this.activeUsers.entries()).forEach(([userId, user]) => {
-      if (new Date(user.lastSeen) < fiveMinutesAgo) {
+    // Clean stale users (only for non-Supabase tracked)
+    for (const [userId, user] of this.activeUsers) {
+      if (!user.isOnline && new Date(user.lastSeen) < fiveMinutesAgo) {
         this.activeUsers.delete(userId);
       }
-    });
+    }
 
     return Array.from(this.activeUsers.values()).filter(
-      user => user.userId !== this.currentUserId
+      user => user.userId !== this.currentUserId,
     );
   }
 
-  /**
-   * Get active users for a specific pack
-   */
   getActiveUsersForPack(packId: string): ActiveUser[] {
-    return this.getActiveUsers().filter(user => user.currentPack === packId);
+    return this.getActiveUsers().filter(u => u.currentPack === packId);
   }
 
-  /**
-   * Cleanup on disconnect
-   */
+  /** Whether real-time multi-user is active (Supabase) */
+  get isMultiUser(): boolean {
+    return this.useSupabase;
+  }
+
+  // ─── Disconnect ───────────────────────────────────────────────────────────
+
   disconnect() {
     if (this.currentUserId) {
       this.broadcast({
@@ -239,9 +311,17 @@ class CollaborationService {
       });
     }
 
-    if (this.channel) {
-      this.channel.close();
-      this.channel = null;
+    // Unsubscribe Supabase
+    if (this.supabaseChannel) {
+      supabase.removeChannel(this.supabaseChannel);
+      this.supabaseChannel = null;
+      this.useSupabase = false;
+    }
+
+    // Close local channel
+    if (this.localChannel) {
+      this.localChannel.close();
+      this.localChannel = null;
     }
 
     this.listeners.clear();

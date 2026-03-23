@@ -57,7 +57,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             organizationName: 'Solvid',
           };
           setCurrentUserState(devUser);
-          collaborationService.initialize(devUser.id, devUser.name);
+          collaborationService.initialize(devUser.id, devUser.name, devUser.organizationId);
           return;
         }
 
@@ -80,7 +80,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 consentAI: user.consentAI,
               };
               setCurrentUserState(authenticatedUser);
-              collaborationService.initialize(authenticatedUser.id, authenticatedUser.name);
+              collaborationService.initialize(authenticatedUser.id, authenticatedUser.name, authenticatedUser.organizationId);
               return;
             }
           } catch (e) {
