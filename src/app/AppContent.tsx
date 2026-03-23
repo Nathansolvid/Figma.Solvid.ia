@@ -27,7 +27,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 // Note: Some icons above are kept for future use (sidebar sub-views may re-use them)
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useDossiers } from "@/contexts/DossierContext";
 import { useVSMEData } from "@/contexts/VSMEDataContext";
 import { getWorkflowById, type WorkflowDefinition } from "@/utils/workflowLibrary";
@@ -368,6 +368,34 @@ export function AppContent() {
       />
     );
   }
+
+  // ── Breadcrumb contextuel ────────────────────────────────────────────────
+  const breadcrumbs = useMemo(() => {
+    const crumbs: Array<{ label: string; view?: ViewType }> = [];
+
+    // Always start with home
+    crumbs.push({ label: 'Tableau de bord', view: 'dashboard' });
+
+    // If we have a dossier context
+    if (currentDossierId && activeDossier) {
+      crumbs.push({ label: activeDossier.name || 'Dossier', view: 'detail-dossier' });
+    }
+
+    // Add current view label if not already the last crumb
+    const viewLabel = VIEW_LABELS[currentView] || currentView;
+    if (currentView !== 'dashboard' && currentView !== 'detail-dossier') {
+      // Add workflow name if in saisie with workflow
+      if (currentView === 'saisie-dossier' && activeWorkflowId) {
+        const wf = getWorkflowById(activeWorkflowId);
+        if (wf) crumbs.push({ label: wf.name });
+        else crumbs.push({ label: viewLabel });
+      } else {
+        crumbs.push({ label: viewLabel });
+      }
+    }
+
+    return crumbs;
+  }, [currentView, currentDossierId, activeDossier, activeWorkflowId]);
 
   const handleCreateDossier = () => navigateToView("creation-dossier");
 
@@ -967,11 +995,11 @@ export function AppContent() {
                       <button
                         key={wfId}
                         onClick={() => navigateToWorkflowView(wfId, "saisie-dossier")}
-                        className="w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-all"
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 min-h-[28px] rounded text-left transition-all"
                         style={{
                           background: activeWorkflowId === wfId ? 'rgba(82,183,136,0.2)' : 'transparent',
                           color: activeWorkflowId === wfId ? '#52B788' : 'rgba(255,255,255,0.45)',
-                          fontSize: '10px',
+                          fontSize: '12px',
                         }}
                         onMouseEnter={e => { if (activeWorkflowId !== wfId) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
                         onMouseLeave={e => { if (activeWorkflowId !== wfId) e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
@@ -986,10 +1014,10 @@ export function AppContent() {
               {/* Saisie directe */}
               <button
                 onClick={() => navigateToSaisie(currentDossierId!)}
-                className="w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-all"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 min-h-[28px] rounded text-left transition-all"
                 style={{
                   color: currentView === 'saisie-dossier' ? '#52B788' : 'rgba(255,255,255,0.45)',
-                  fontSize: '10px',
+                  fontSize: '12px',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
                 onMouseLeave={e => { if (currentView !== 'saisie-dossier') e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
@@ -1004,8 +1032,8 @@ export function AppContent() {
           {renderSectionHeader("collecte", "import", "Collecte", <Upload className="h-4 w-4 flex-shrink-0" />, ["import", "erp-connector", "saisie-dossier", "bibliotheque-templates"])}
           {sidebarOpen && !collapsedGroups.has("collecte") && (
             <div className="ml-7 space-y-0.5 mb-1">
-              {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("bibliotheque-templates", "Templates Excel", <Database className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("bibliotheque-templates", "Templates Excel", <Database className="h-4 w-4 flex-shrink-0" />)}
             </div>
           )}
 
@@ -1013,9 +1041,9 @@ export function AppContent() {
           {renderSectionHeader("rapports", "exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, ["exports-livrables", "rapport-ia", "audit-center", "preuves-requises"])}
           {sidebarOpen && !collapsedGroups.has("rapports") && (
             <div className="ml-7 space-y-0.5 mb-1">
-              {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("audit-center", "Contrôle qualité", <Shield className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("preuves-requises", "Justificatifs", <CheckSquare className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("audit-center", "Contrôle qualité", <Shield className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("preuves-requises", "Justificatifs", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
             </div>
           )}
 
@@ -1023,10 +1051,10 @@ export function AppContent() {
           {renderSectionHeader("reglages", "parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, ["parametres", "guide-aide", "glossaire", "historique", "referentiels"])}
           {sidebarOpen && !collapsedGroups.has("reglages") && (
             <div className="ml-7 space-y-0.5 mb-1">
-              {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("glossaire", "Glossaire ESG", <BookOpen className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("referentiels", "Référentiels", <Activity className="h-3.5 w-3.5 flex-shrink-0" />)}
-              {renderNavItem("historique", "Historique", <History className="h-3.5 w-3.5 flex-shrink-0" />)}
+              {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("glossaire", "Glossaire ESG", <BookOpen className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("referentiels", "Référentiels", <Activity className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("historique", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
             </div>
           )}
 
@@ -1077,9 +1105,23 @@ export function AppContent() {
               <Menu className="h-5 w-5" />
             </button>
             <div>
-              <h2 className="text-[17px] font-semibold" style={{ color: '#1a2e24' }}>
-                {VIEW_LABELS[currentView]}
-              </h2>
+              <div className="flex items-center gap-1.5 text-sm">
+                {breadcrumbs.map((crumb, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <ChevronRight className="h-3 w-3 text-gray-400" />}
+                    {crumb.view && i < breadcrumbs.length - 1 ? (
+                      <button
+                        onClick={() => navigateToView(crumb.view!)}
+                        className="text-gray-500 hover:text-emerald-700 transition-colors"
+                      >
+                        {crumb.label}
+                      </button>
+                    ) : (
+                      <span className="font-semibold text-gray-900">{crumb.label}</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
               <p className="text-[12px]" style={{ color: '#8aab98' }}>
                 {currentUser.organizationName}
               </p>

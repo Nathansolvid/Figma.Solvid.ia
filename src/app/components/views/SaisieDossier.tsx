@@ -569,6 +569,7 @@ function IndicatorRow({
 
   return (
     <tr
+      id={`indicator-row-${dp.code}`}
       className={cn(
         "border-b transition-colors group relative",
         isFilled && !isComputed && "bg-[#f8fdf9]",
@@ -905,6 +906,64 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
     setTimeout(() => setSaveIndicator(false), 1200);
   };
 
+  // ── "Prochain à remplir" — scroll to next empty indicator ────────────────
+  const scrollToNextEmpty = () => {
+    // 1. Look for the first empty datapoint in the current tab
+    const currentTabSections = MODULE_B
+      .filter(s => {
+        const tab = visibleOnglets.find(t => t.id === activeTab);
+        return tab && tab.sections.includes(s.id);
+      })
+      .filter(s => !workflowSections || workflowSections.includes(s.id));
+
+    for (const section of currentTabSections) {
+      for (const dp of section.datapoints) {
+        if (dp.computed) continue;
+        if (dossierValues.statuts[dp.code] !== 'filled') {
+          const el = document.getElementById(`indicator-row-${dp.code}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Not found in current tab — find the next tab with empty indicators
+    const currentTabIndex = visibleOnglets.findIndex(t => t.id === activeTab);
+    for (let offset = 1; offset < visibleOnglets.length; offset++) {
+      const nextTab = visibleOnglets[(currentTabIndex + offset) % visibleOnglets.length];
+      const nextSections = MODULE_B
+        .filter(s => nextTab.sections.includes(s.id))
+        .filter(s => !workflowSections || workflowSections.includes(s.id));
+      const hasEmpty = nextSections.some(s =>
+        s.datapoints.some(dp => !dp.computed && dossierValues.statuts[dp.code] !== 'filled')
+      );
+      if (hasEmpty) {
+        setActiveTab(nextTab.id);
+        // After tab switch, scroll on next render
+        setTimeout(() => {
+          for (const section of nextSections) {
+            for (const dp of section.datapoints) {
+              if (dp.computed) continue;
+              if (dossierValues.statuts[dp.code] !== 'filled') {
+                const el = document.getElementById(`indicator-row-${dp.code}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  return;
+                }
+              }
+            }
+          }
+        }, 150);
+        return;
+      }
+    }
+
+    // 3. Everything is filled
+    toast.success("Tous les indicateurs sont remplis !");
+  };
+
   // ── Import Excel/CSV : remplit uniquement les champs vides ──────────────────
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1093,12 +1152,20 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
                 ))}
               </div>
 
-              {/* Score global */}
-              <div className="text-center">
+              {/* Score global + Prochain à remplir */}
+              <div className="text-center flex flex-col items-center gap-1.5">
                 <p className="text-3xl font-bold" style={{ color: "#1a5f3f" }}>{stats.pct}%</p>
                 <p className="text-[11px]" style={{ color: "#9ca3af" }}>
                   {stats.filled}/{stats.total} données
                 </p>
+                {stats.pct < 100 && (
+                  <button
+                    onClick={scrollToNextEmpty}
+                    className="text-xs px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-medium transition-colors"
+                  >
+                    Prochain à remplir →
+                  </button>
+                )}
               </div>
 
               {/* 🆕 Bouton Importer par Excel */}
