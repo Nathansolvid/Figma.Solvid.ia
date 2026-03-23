@@ -1309,7 +1309,8 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
 
         {/* ── Onglets thématiques ───────────────────────────────────────── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-white border rounded-xl p-1 gap-1 h-auto w-full justify-start overflow-x-auto" style={{ borderColor: "#E2EDE7" }}>
+          {/* Hide tab bar when only 1 tab visible — content shows directly */}
+          <TabsList className={`bg-white border rounded-xl p-1 gap-1 h-auto w-full justify-start overflow-x-auto ${visibleOnglets.length <= 1 && periods.length <= 1 ? 'hidden' : ''}`} style={{ borderColor: "#E2EDE7" }}>
             {visibleOnglets.map(tab => {
               const tabDps = MODULE_B
                 .filter(s => tab.sections.includes(s.id))
