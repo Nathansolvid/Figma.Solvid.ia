@@ -746,11 +746,12 @@ class ERPConnectorService {
   }
 
   private async runSyncLocal(connection: ERPConnection, mapping: ERPMapping): Promise<SyncJob> {
+    const startedAt = new Date().toISOString();
     const job: SyncJob = {
       id: uuidv4(),
       connectionId: connection.id,
       status: 'syncing',
-      startedAt: new Date().toISOString(),
+      startedAt,
       triggeredBy: 'manual',
       stats: { totalRecords: 0, mappedRecords: 0, importedRecords: 0, skippedRecords: 0, errorRecords: 0, indicatorsUpdated: 0 },
       errors: [],
@@ -758,8 +759,85 @@ class ERPConnectorService {
     };
     this.saveSyncJob(job);
 
-    await new Promise(r => setTimeout(r, 2000));
+    // For FEC connections: parse real FEC data and run through the enriched pipeline
+    if (connection.provider === 'fec_import' && connection.credentials.fec_content) {
+      try {
+        const data = this.parseFECToEnrichedData(connection.credentials.fec_content);
+        const capabilities: ERPAdapterCapabilities = {
+          hasInvoices: false,
+          hasInvoiceLines: false,
+          hasJournalEntries: true,
+          hasHR: false,
+        };
+        const result = this.processEnrichedData(connection, data, capabilities);
+        // Convert enriched previews to SyncDataPreview for backward compat
+        const preview: SyncDataPreview[] = result.enrichedPreviews.map(ep => ({
+          erpField: ep.erpField,
+          erpValue: ep.erpValue,
+          targetCode: ep.targetCode,
+          targetName: ep.targetName,
+          transformedValue: ep.transformedValue,
+          unit: ep.unit,
+          status: ep.status,
+        }));
+        const completedJob: SyncJob = {
+          ...result.job,
+          id: job.id,
+          startedAt,
+          stats: {
+            ...result.job.stats,
+            duration: Date.now() - new Date(startedAt).getTime(),
+          },
+          dataPreview: preview,
+        };
+        this.saveSyncJob(completedJob);
+        return completedJob;
+      } catch (error: any) {
+        console.error('[ERP] FEC parsing failed in runSyncLocal, falling back to mapping rules:', error);
+        // Fall through to mapping-rule-based sync below
+      }
+    }
 
+    // For Pennylane/Odoo: attempt to fetch real data via API
+    if (connection.provider === 'pennylane' || connection.provider === 'odoo') {
+      try {
+        const data = await this.fetchERPData(connection);
+        if (data) {
+          const capabilities: ERPAdapterCapabilities = {
+            hasInvoices: data.invoices.length > 0,
+            hasInvoiceLines: data.invoices.some(i => i.lines && i.lines.length > 0),
+            hasJournalEntries: data.journalEntries.length > 0,
+            hasHR: connection.provider === 'odoo' && data.employees.length > 0,
+          };
+          const result = this.processEnrichedData(connection, data, capabilities);
+          const preview: SyncDataPreview[] = result.enrichedPreviews.map(ep => ({
+            erpField: ep.erpField,
+            erpValue: ep.erpValue,
+            targetCode: ep.targetCode,
+            targetName: ep.targetName,
+            transformedValue: ep.transformedValue,
+            unit: ep.unit,
+            status: ep.status,
+          }));
+          const completedJob: SyncJob = {
+            ...result.job,
+            id: job.id,
+            startedAt,
+            stats: {
+              ...result.job.stats,
+              duration: Date.now() - new Date(startedAt).getTime(),
+            },
+            dataPreview: preview,
+          };
+          this.saveSyncJob(completedJob);
+          return completedJob;
+        }
+      } catch (error: any) {
+        console.warn('[ERP] API fetch failed for', connection.provider, '— falling back to mapping rules:', error.message);
+      }
+    }
+
+    // Fallback: apply mapping rules with generated demo values
     const activeRules = mapping.rules.filter(r => r.isActive);
     const preview: SyncDataPreview[] = activeRules.map(rule => {
       const rawValue = this.generateDemoValue(rule);
@@ -786,7 +864,7 @@ class ERPConnectorService {
         skippedRecords: 0,
         errorRecords: 0,
         indicatorsUpdated: activeRules.length,
-        duration: 2000,
+        duration: Date.now() - new Date(startedAt).getTime(),
       },
       dataPreview: preview,
     };
@@ -894,7 +972,8 @@ class ERPConnectorService {
   }
 
   /**
-   * Fallback local : génère des données simulées réalistes puis applique le pipeline complet.
+   * Fallback local : uses real FEC data when available, attempts API fetch for
+   * Pennylane/Odoo, then falls back to simulated data as last resort.
    */
   private async runEnrichedSyncLocal(connection: ERPConnection): Promise<{
     job: SyncJob;
@@ -902,8 +981,42 @@ class ERPConnectorService {
     esgPoints: ESGDataPoint[];
     supplierSummary: SupplierCategorySummary[];
   }> {
-    await new Promise(r => setTimeout(r, 2000));
+    // 1) FEC import: parse real FEC content into journal entries
+    if (connection.provider === 'fec_import' && connection.credentials.fec_content) {
+      try {
+        const data = this.parseFECToEnrichedData(connection.credentials.fec_content);
+        const capabilities: ERPAdapterCapabilities = {
+          hasInvoices: false,
+          hasInvoiceLines: false,
+          hasJournalEntries: true,
+          hasHR: false,
+        };
+        return this.processEnrichedData(connection, data, capabilities);
+      } catch (error: any) {
+        console.error('[ERP] FEC parsing failed, falling back to simulated data:', error);
+      }
+    }
 
+    // 2) Pennylane/Odoo: attempt real API fetch
+    if (connection.provider === 'pennylane' || connection.provider === 'odoo') {
+      try {
+        const data = await this.fetchERPData(connection);
+        if (data) {
+          const capabilities: ERPAdapterCapabilities = {
+            hasInvoices: data.invoices.length > 0,
+            hasInvoiceLines: data.invoices.some(i => i.lines && i.lines.length > 0),
+            hasJournalEntries: data.journalEntries.length > 0,
+            hasHR: connection.provider === 'odoo' && data.employees.length > 0,
+          };
+          return this.processEnrichedData(connection, data, capabilities);
+        }
+      } catch (error: any) {
+        console.warn('[ERP] API fetch failed for', connection.provider, '— falling back to simulated data:', error.message);
+      }
+    }
+
+    // 3) Last resort: simulated data for demo / when APIs are unreachable
+    console.log('[ERP] Using simulated data for', connection.provider);
     const year = new Date().getFullYear().toString();
     const data = this.generateSimulatedEnrichedData(year);
     const capabilities: ERPAdapterCapabilities = {
@@ -1039,7 +1152,275 @@ class ERPConnectorService {
   }
 
   /**
-   * Génère des données simulées réalistes pour le mode local.
+   * Parse raw FEC content into the enriched data format expected by processEnrichedData.
+   * FEC standard columns (tab-separated): JournalCode, JournalLib, EcritureNum, EcritureDate,
+   * CompteNum, CompteLib, CompAuxNum, CompAuxLib, PieceRef, PieceDate, EcritureLib, Debit, Credit, ...
+   */
+  private parseFECToEnrichedData(fecContent: string): {
+    accountData: Array<{ accountCode: string; accountLabel: string; debit: number; credit: number; balance: number }>;
+    invoices: ERPInvoice[];
+    journalEntries: ERPJournalEntry[];
+    employees: ERPEmployee[];
+  } {
+    const lines = fecContent.split('\n');
+    if (lines.length < 2) throw new Error('FEC content too short');
+
+    // Parse header to find column indices
+    const headerLine = lines[0];
+    const separator = headerLine.includes('\t') ? '\t' : ';';
+    const headers = headerLine.split(separator).map(h => h.trim().toLowerCase());
+
+    const colIdx = (name: string): number => {
+      const idx = headers.indexOf(name.toLowerCase());
+      return idx;
+    };
+
+    const iJournalCode = colIdx('journalcode');
+    const iEcritureDate = colIdx('ecrituredate');
+    const iCompteNum = colIdx('comptenum');
+    const iCompteLib = colIdx('comptelib');
+    const iCompAuxNum = colIdx('compauxnum');
+    const iCompAuxLib = colIdx('compauxlib');
+    const iPieceRef = colIdx('pieceref');
+    const iEcritureLib = colIdx('ecriturelib');
+    const iDebit = colIdx('debit');
+    const iCredit = colIdx('credit');
+
+    if (iCompteNum < 0) throw new Error('CompteNum column not found in FEC header');
+
+    // Parse journal entries
+    const journalEntries: ERPJournalEntry[] = [];
+    const accountTotals = new Map<string, { label: string; debit: number; credit: number }>();
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(separator);
+      const accountCode = cols[iCompteNum]?.trim() || '';
+      if (!accountCode) continue;
+
+      const accountLabel = cols[iCompteLib]?.trim() || '';
+      const debitStr = (cols[iDebit] || '0').trim().replace(',', '.');
+      const creditStr = (cols[iCredit] || '0').trim().replace(',', '.');
+      const debit = parseFloat(debitStr) || 0;
+      const credit = parseFloat(creditStr) || 0;
+
+      const entry: ERPJournalEntry = {
+        id: `fec-${i}`,
+        journalCode: iJournalCode >= 0 ? (cols[iJournalCode]?.trim() || '') : '',
+        date: iEcritureDate >= 0 ? (cols[iEcritureDate]?.trim() || '') : '',
+        accountCode,
+        accountLabel,
+        auxiliaryCode: iCompAuxNum >= 0 ? (cols[iCompAuxNum]?.trim() || undefined) : undefined,
+        auxiliaryLabel: iCompAuxLib >= 0 ? (cols[iCompAuxLib]?.trim() || undefined) : undefined,
+        description: iEcritureLib >= 0 ? (cols[iEcritureLib]?.trim() || '') : '',
+        debit,
+        credit,
+        pieceRef: iPieceRef >= 0 ? (cols[iPieceRef]?.trim() || undefined) : undefined,
+      };
+      journalEntries.push(entry);
+
+      // Aggregate account totals
+      const existing = accountTotals.get(accountCode);
+      if (existing) {
+        existing.debit += debit;
+        existing.credit += credit;
+      } else {
+        accountTotals.set(accountCode, { label: accountLabel, debit, credit });
+      }
+    }
+
+    // Build account data from aggregated totals
+    const accountData = Array.from(accountTotals.entries()).map(([code, totals]) => ({
+      accountCode: code,
+      accountLabel: totals.label,
+      debit: Math.round(totals.debit * 100) / 100,
+      credit: Math.round(totals.credit * 100) / 100,
+      balance: Math.round((totals.debit - totals.credit) * 100) / 100,
+    }));
+
+    console.log(`[ERP] Parsed FEC: ${journalEntries.length} journal entries, ${accountData.length} accounts`);
+
+    return {
+      accountData,
+      invoices: [],          // FEC = journal entries, not invoices
+      journalEntries,
+      employees: [],         // FEC has no HR data
+    };
+  }
+
+  /**
+   * Attempt to fetch real data from Pennylane or Odoo APIs.
+   * Returns null if the API is unreachable or returns errors.
+   */
+  private async fetchERPData(connection: ERPConnection): Promise<{
+    accountData: Array<{ accountCode: string; accountLabel: string; debit: number; credit: number; balance: number }>;
+    invoices: ERPInvoice[];
+    journalEntries: ERPJournalEntry[];
+    employees: ERPEmployee[];
+  } | null> {
+    const { provider, credentials } = connection;
+
+    if (provider === 'pennylane') {
+      try {
+        // Fetch supplier invoices from Pennylane API
+        const res = await fetch('https://app.pennylane.com/api/external/v1/supplier_invoices?per_page=100', {
+          headers: {
+            'Authorization': `Bearer ${credentials.api_key}`,
+            'Accept': 'application/json',
+          },
+        });
+        if (!res.ok) return null;
+
+        const body = await res.json();
+        const rawInvoices = body.invoices || body.data || [];
+        const invoices: ERPInvoice[] = rawInvoices.map((inv: any, idx: number) => ({
+          id: inv.id?.toString() || `pl-inv-${idx}`,
+          type: 'purchase' as const,
+          invoiceNumber: inv.invoice_number || inv.id?.toString() || `PL-${idx}`,
+          supplier: {
+            id: inv.third_party?.id?.toString() || `pl-sup-${idx}`,
+            name: inv.third_party?.name || inv.supplier_name || 'Fournisseur inconnu',
+          },
+          date: inv.date || inv.invoice_date || '',
+          totalHT: inv.amount || inv.total_ht || 0,
+          totalTTC: inv.amount_with_tax || inv.total_ttc || 0,
+          currency: (inv.currency || 'EUR') as 'EUR',
+          rawDescription: inv.label || inv.filename || '',
+          lines: (inv.invoice_lines || inv.lines || []).map((line: any, lineIdx: number) => ({
+            id: line.id?.toString() || `pl-line-${idx}-${lineIdx}`,
+            description: line.label || line.description || '',
+            accountCode: line.plan_item_number || line.account?.number || '',
+            amount: line.amount || line.debit || 0,
+            quantity: line.quantity,
+            unit: line.unit,
+          })),
+        }));
+
+        console.log(`[ERP] Fetched ${invoices.length} invoices from Pennylane API`);
+
+        // Build account data from invoice lines
+        const acctMap = new Map<string, { label: string; total: number }>();
+        for (const inv of invoices) {
+          for (const line of inv.lines) {
+            if (!line.accountCode) continue;
+            const ex = acctMap.get(line.accountCode);
+            if (ex) {
+              ex.total += line.amount;
+            } else {
+              acctMap.set(line.accountCode, { label: line.description, total: line.amount });
+            }
+          }
+        }
+
+        return {
+          accountData: Array.from(acctMap.entries()).map(([code, v]) => ({
+            accountCode: code,
+            accountLabel: v.label,
+            debit: v.total,
+            credit: 0,
+            balance: v.total,
+          })),
+          invoices,
+          journalEntries: [],
+          employees: [],
+        };
+      } catch (error: any) {
+        console.warn('[ERP] Pennylane API fetch failed:', error.message);
+        return null;
+      }
+    }
+
+    if (provider === 'odoo') {
+      try {
+        // Authenticate first
+        const authRes = await fetch(`${credentials.url}/jsonrpc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'call',
+            params: {
+              service: 'common', method: 'authenticate',
+              args: [credentials.database, credentials.username, credentials.api_key, {}],
+            },
+          }),
+        });
+        const authData = await authRes.json();
+        const uid = authData.result;
+        if (!uid) return null;
+
+        // Fetch account.move.line (journal items)
+        const moveRes = await fetch(`${credentials.url}/jsonrpc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'call',
+            params: {
+              service: 'object', method: 'execute_kw',
+              args: [
+                credentials.database, uid, credentials.api_key,
+                'account.move.line', 'search_read',
+                [[['parent_state', '=', 'posted']]],
+                { fields: ['name', 'date', 'account_id', 'debit', 'credit', 'partner_id', 'ref', 'journal_id'], limit: 500 },
+              ],
+            },
+          }),
+        });
+        const moveData = await moveRes.json();
+        const rawEntries = moveData.result || [];
+
+        const journalEntries: ERPJournalEntry[] = rawEntries.map((e: any, idx: number) => ({
+          id: e.id?.toString() || `odoo-${idx}`,
+          journalCode: Array.isArray(e.journal_id) ? e.journal_id[1] : '',
+          date: e.date || '',
+          accountCode: Array.isArray(e.account_id) ? e.account_id[1]?.split(' ')[0] : '',
+          accountLabel: Array.isArray(e.account_id) ? e.account_id[1] : '',
+          auxiliaryCode: Array.isArray(e.partner_id) ? e.partner_id[0]?.toString() : undefined,
+          auxiliaryLabel: Array.isArray(e.partner_id) ? e.partner_id[1] : undefined,
+          description: e.name || '',
+          debit: e.debit || 0,
+          credit: e.credit || 0,
+          pieceRef: e.ref || undefined,
+        }));
+
+        console.log(`[ERP] Fetched ${journalEntries.length} journal entries from Odoo API`);
+
+        // Build account data
+        const acctMap = new Map<string, { label: string; debit: number; credit: number }>();
+        for (const entry of journalEntries) {
+          const ex = acctMap.get(entry.accountCode);
+          if (ex) {
+            ex.debit += entry.debit;
+            ex.credit += entry.credit;
+          } else {
+            acctMap.set(entry.accountCode, { label: entry.accountLabel, debit: entry.debit, credit: entry.credit });
+          }
+        }
+
+        return {
+          accountData: Array.from(acctMap.entries()).map(([code, v]) => ({
+            accountCode: code,
+            accountLabel: v.label,
+            debit: Math.round(v.debit * 100) / 100,
+            credit: Math.round(v.credit * 100) / 100,
+            balance: Math.round((v.debit - v.credit) * 100) / 100,
+          })),
+          invoices: [],
+          journalEntries,
+          employees: [],
+        };
+      } catch (error: any) {
+        console.warn('[ERP] Odoo API fetch failed:', error.message);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Génère des données simulées réalistes pour le mode local (dernier recours).
    */
   private generateSimulatedEnrichedData(year: string) {
     const invoices: ERPInvoice[] = [

@@ -390,7 +390,7 @@ function SetupView({ provider, onBack, onComplete }: {
         description: `${provider.name} est maintenant connecté. Un mapping par défaut a été créé.`,
       });
 
-      setTimeout(() => onComplete(tempConnection), 1000);
+      onComplete(tempConnection);
     }
   };
 
