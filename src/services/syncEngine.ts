@@ -9,6 +9,40 @@
 import { supabase } from '@/lib/supabase';
 import { syncQueue, type QueuedOperation } from './syncQueue';
 import { supabaseProvider } from './supabaseProvider';
+import type { Database } from '@/types/supabase';
+
+type Tables = Database['public']['Tables'];
+
+/**
+ * All table names handled by the sync engine dispatch.
+ */
+type SyncTableName = keyof Tables;
+
+/**
+ * Centralized cast helper: converts a generic sync payload to the
+ * typed Insert shape for a given table. This is the ONE place where
+ * we bridge the untyped queue payload to Supabase's generated types.
+ *
+ * Safety: the payload was originally constructed from the correct
+ * typed object before being serialised into the sync queue, so the
+ * runtime shape matches — only the compile-time type is lost.
+ */
+function asInsert<T extends SyncTableName>(
+  _table: T,
+  payload: Record<string, unknown>,
+): Tables[T]['Insert'] {
+  return payload as Tables[T]['Insert'];
+}
+
+/**
+ * Same principle for Update payloads (used by updateOrganization).
+ */
+function asUpdate<T extends SyncTableName>(
+  _table: T,
+  payload: Record<string, unknown>,
+): Tables[T]['Update'] {
+  return payload as Tables[T]['Update'];
+}
 
 export type SyncStatus = 'online' | 'offline' | 'syncing';
 
@@ -167,7 +201,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteDossier(payload.id as string);
         } else {
-          await supabaseProvider.upsertDossier(payload as any);
+          await supabaseProvider.upsertDossier(asInsert('dossiers', payload));
         }
         break;
       }
@@ -175,7 +209,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           // Single value delete not common, skip
         } else {
-          await supabaseProvider.upsertVSMEValue(payload as any);
+          await supabaseProvider.upsertVSMEValue(asInsert('vsme_values', payload));
         }
         break;
       }
@@ -183,19 +217,19 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteNote(payload.id as string);
         } else {
-          await supabaseProvider.upsertNote(payload as any);
+          await supabaseProvider.upsertNote(asInsert('mission_notes', payload));
         }
         break;
       }
       case 'profiles': {
         if (operation !== 'DELETE') {
-          await supabaseProvider.upsertProfile(payload as any);
+          await supabaseProvider.upsertProfile(asInsert('profiles', payload));
         }
         break;
       }
       case 'organizations': {
         if (operation === 'UPDATE') {
-          await supabaseProvider.updateOrganization(payload.id as string, payload as any);
+          await supabaseProvider.updateOrganization(payload.id as string, asUpdate('organizations', payload));
         }
         break;
       }
@@ -203,7 +237,7 @@ class SyncEngine {
       // ─── Pack Management ──────────────────────────────
       case 'pack_templates': {
         if (operation !== 'DELETE') {
-          await supabaseProvider.upsertPackTemplate(payload as any);
+          await supabaseProvider.upsertPackTemplate(asInsert('pack_templates', payload));
         }
         break;
       }
@@ -211,7 +245,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deletePackInstance(payload.id as string);
         } else {
-          await supabaseProvider.upsertPackInstance(payload as any);
+          await supabaseProvider.upsertPackInstance(asInsert('pack_instances', payload));
         }
         break;
       }
@@ -219,7 +253,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteChecklistItem(payload.id as string);
         } else {
-          await supabaseProvider.upsertChecklistItem(payload as any);
+          await supabaseProvider.upsertChecklistItem(asInsert('checklist_items', payload));
         }
         break;
       }
@@ -227,7 +261,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteKPIRequirement(payload.id as string);
         } else {
-          await supabaseProvider.upsertKPIRequirement(payload as any);
+          await supabaseProvider.upsertKPIRequirement(asInsert('kpi_requirements', payload));
         }
         break;
       }
@@ -235,7 +269,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteFolder(payload.id as string);
         } else {
-          await supabaseProvider.upsertFolder(payload as any);
+          await supabaseProvider.upsertFolder(asInsert('folders', payload));
         }
         break;
       }
@@ -243,7 +277,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteIndicator(payload.id as string);
         } else {
-          await supabaseProvider.upsertIndicator(payload as any);
+          await supabaseProvider.upsertIndicator(asInsert('indicators', payload));
         }
         break;
       }
@@ -253,7 +287,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteEvidence(payload.id as string);
         } else {
-          await supabaseProvider.upsertEvidence(payload as any);
+          await supabaseProvider.upsertEvidence(asInsert('evidence', payload));
         }
         break;
       }
@@ -261,7 +295,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteEvidenceLink(payload.id as string);
         } else {
-          await supabaseProvider.upsertEvidenceLink(payload as any);
+          await supabaseProvider.upsertEvidenceLink(asInsert('evidence_links', payload));
         }
         break;
       }
@@ -269,7 +303,7 @@ class SyncEngine {
       // ─── Data Imports ─────────────────────────────────
       case 'data_imports': {
         if (operation !== 'DELETE') {
-          await supabaseProvider.upsertDataImport(payload as any);
+          await supabaseProvider.upsertDataImport(asInsert('data_imports', payload));
         }
         break;
       }
@@ -277,7 +311,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteDataRow(payload.id as string);
         } else {
-          await supabaseProvider.upsertDataRow(payload as any);
+          await supabaseProvider.upsertDataRow(asInsert('data_rows', payload));
         }
         break;
       }
@@ -287,13 +321,13 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteTask(payload.id as string);
         } else {
-          await supabaseProvider.upsertTask(payload as any);
+          await supabaseProvider.upsertTask(asInsert('tasks', payload));
         }
         break;
       }
       case 'notifications': {
         if (operation !== 'DELETE') {
-          await supabaseProvider.upsertNotification(payload as any);
+          await supabaseProvider.upsertNotification(asInsert('notifications', payload));
         }
         break;
       }
@@ -301,7 +335,7 @@ class SyncEngine {
       // ─── Audit & Export ───────────────────────────────
       case 'audit_logs': {
         if (operation === 'INSERT') {
-          await supabaseProvider.appendAuditLog(payload as any);
+          await supabaseProvider.appendAuditLog(asInsert('audit_logs', payload));
         }
         break;
       }
@@ -309,7 +343,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteExportHistory(payload.id as string);
         } else {
-          await supabaseProvider.upsertExportHistory(payload as any);
+          await supabaseProvider.upsertExportHistory(asInsert('export_history', payload));
         }
         break;
       }
@@ -319,7 +353,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteInvitation(payload.id as string);
         } else {
-          await supabaseProvider.upsertInvitation(payload as any);
+          await supabaseProvider.upsertInvitation(asInsert('invitations', payload));
         }
         break;
       }
@@ -329,7 +363,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteERPConnection(payload.id as string);
         } else {
-          await supabaseProvider.upsertERPConnection(payload as any);
+          await supabaseProvider.upsertERPConnection(asInsert('erp_connections', payload));
         }
         break;
       }
@@ -337,13 +371,13 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteERPMapping(payload.id as string);
         } else {
-          await supabaseProvider.upsertERPMapping(payload as any);
+          await supabaseProvider.upsertERPMapping(asInsert('erp_mappings', payload));
         }
         break;
       }
       case 'erp_sync_jobs': {
         if (operation !== 'DELETE') {
-          await supabaseProvider.upsertERPSyncJob(payload as any);
+          await supabaseProvider.upsertERPSyncJob(asInsert('erp_sync_jobs', payload));
         }
         break;
       }
@@ -351,7 +385,7 @@ class SyncEngine {
         if (operation === 'DELETE') {
           await supabaseProvider.deleteESGDataPoint(payload.id as string);
         } else {
-          await supabaseProvider.upsertESGDataPoint(payload as any);
+          await supabaseProvider.upsertESGDataPoint(asInsert('esg_data_points', payload));
         }
         break;
       }

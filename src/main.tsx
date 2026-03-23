@@ -18,6 +18,11 @@ if (SENTRY_DSN) {
     beforeSend(event) {
       // RGPD: never send emails to Sentry
       if (event.user?.email) event.user.email = '[REDACTED]';
+      // Filter out HMR-related context errors in development
+      const msg = event.exception?.values?.[0]?.value || '';
+      if (import.meta.env.MODE === 'development' && msg.includes('must be used within')) {
+        return null; // Drop HMR false positives
+      }
       return event;
     },
   });
