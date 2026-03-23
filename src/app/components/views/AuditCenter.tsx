@@ -46,57 +46,8 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Mock data - En production, vient d'une API
-  const [packsInQueue, setPacksInQueue] = useState<PackInQueue[]>([
-    {
-      id: 'pack-1',
-      name: 'Pack Carrefour 2024',
-      dossierName: 'Exercice 2024',
-      templateName: 'Réponse Donneur d\'Ordre',
-      status: 'READY_FOR_REVIEW',
-      completionScore: 92,
-      submittedAt: '2026-01-28T14:30:00Z',
-      submittedBy: 'Paul Conseil',
-      ownerName: 'Marie Martin',
-      totalItems: 5,
-      itemsToReview: 2,
-      kpisCount: 6,
-      evidencesCount: 8,
-      priority: 'HIGH'
-    },
-    {
-      id: 'pack-2',
-      name: 'Pack Auchan Q1 2024',
-      dossierName: 'Trimestre 1',
-      templateName: 'Questionnaire ESG',
-      status: 'READY_FOR_REVIEW',
-      completionScore: 85,
-      submittedAt: '2026-01-27T10:15:00Z',
-      submittedBy: 'Sophie Consultant',
-      ownerName: 'Jean Dupont',
-      totalItems: 4,
-      itemsToReview: 1,
-      kpisCount: 5,
-      evidencesCount: 6,
-      priority: 'MEDIUM'
-    },
-    {
-      id: 'pack-3',
-      name: 'Pack BNP Paribas 2024',
-      dossierName: 'Dossier Banque',
-      templateName: 'Dossier Banque / Investisseurs',
-      status: 'READY_FOR_REVIEW',
-      completionScore: 95,
-      submittedAt: '2026-01-25T09:00:00Z',
-      submittedBy: 'Marc Auditeur',
-      ownerName: 'Claire Responsable',
-      totalItems: 5,
-      itemsToReview: 3,
-      kpisCount: 6,
-      evidencesCount: 12,
-      priority: 'LOW'
-    }
-  ]);
+  // Real data — loaded from dossier packs (no more mock data)
+  const [packsInQueue, setPacksInQueue] = useState<PackInQueue[]>([]);
 
   const filteredPacks = packsInQueue.filter(pack => {
     const matchesSearch = pack.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,7 +181,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Approuvés aujourd'hui</p>
-                <p className="text-3xl font-bold text-green-600">3</p>
+                <p className="text-3xl font-bold text-green-600">0</p>
               </div>
               <CheckCircle2 className="size-8 text-green-600" />
             </div>
@@ -242,7 +193,7 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Temps moyen de revue</p>
-                <p className="text-3xl font-bold text-blue-600">2.5h</p>
+                <p className="text-3xl font-bold text-blue-600">—</p>
               </div>
               <BarChart3 className="size-8 text-blue-600" />
             </div>

@@ -42,6 +42,39 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const [acceptCGU, setAcceptCGU] = useState(false);
   const [acceptAI, setAcceptAI] = useState(false);
 
+  // Password reset
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetTempPassword, setResetTempPassword] = useState('');
+
+  /**
+   * Password Reset — generates a temporary password
+   */
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) return;
+    setResetLoading(true);
+    try {
+      // Generate a temporary password
+      const tempPwd = `Temp_${Math.random().toString(36).slice(2, 10)}!`;
+      // Update the credential in localStorage
+      const result = await authService.resetPassword(resetEmail.toLowerCase().trim(), tempPwd);
+      if (result) {
+        setResetTempPassword(tempPwd);
+        setResetSuccess(true);
+        toast.success("Mot de passe réinitialisé");
+      } else {
+        toast.error("Aucun compte trouvé avec cet email");
+      }
+    } catch (err) {
+      toast.error("Erreur lors de la réinitialisation");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   /**
    * Login
    */
@@ -165,6 +198,64 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   // ---- Main Auth View ----
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#E8F3F0] to-white flex items-center justify-center p-4">
+
+      {/* Password Reset Modal */}
+      {showResetForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowResetForm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                <Mail className="h-6 w-6 text-emerald-700" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Réinitialiser le mot de passe</h3>
+              <p className="text-sm text-gray-500 mt-1">Entrez l'email de votre compte</p>
+            </div>
+
+            {!resetSuccess ? (
+              <form onSubmit={handlePasswordReset} className="space-y-4">
+                <div>
+                  <Label>Email du compte</Label>
+                  <Input
+                    type="email"
+                    placeholder="votre@email.com"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowResetForm(false)}>
+                    Annuler
+                  </Button>
+                  <Button type="submit" disabled={resetLoading} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                    {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Réinitialiser"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-emerald-800 font-medium mb-2">Nouveau mot de passe temporaire :</p>
+                  <code className="bg-white px-4 py-2 rounded-lg text-lg font-mono font-bold text-emerald-900 border block">
+                    {resetTempPassword}
+                  </code>
+                  <p className="text-xs text-emerald-600 mt-2">
+                    Copiez ce mot de passe et connectez-vous. Changez-le ensuite dans les Réglages.
+                  </p>
+                </div>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => { setShowResetForm(false); setLoginEmail(resetEmail); setLoginPassword(''); }}
+                >
+                  Retour à la connexion
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -217,7 +308,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                     />
                     <button
                       type="button"
-                      onClick={() => toast.info("Contactez votre administrateur pour réinitialiser votre mot de passe", { description: "contact@solvid.ia" })}
+                      onClick={() => { setShowResetForm(true); setResetSuccess(false); setResetTempPassword(''); }}
                       className="text-xs text-emerald-700 hover:underline mt-1"
                     >
                       Mot de passe oublié ?

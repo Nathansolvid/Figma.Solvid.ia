@@ -344,6 +344,29 @@ class AuthService {
     this.clearSessionFromStorage();
   }
 
+  /**
+   * Reset a user's password by email.
+   * Returns true if the email was found and password was reset.
+   */
+  async resetPassword(email: string, newPassword: string): Promise<boolean> {
+    const creds = this.getLocalCredentials();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!creds[normalizedEmail]) {
+      return false; // No account with this email
+    }
+
+    // Hash the new password
+    const passwordHash = await this.hashPassword(newPassword);
+    creds[normalizedEmail] = {
+      ...creds[normalizedEmail],
+      passwordHash,
+      version: 2,
+    };
+    this.saveLocalCredentials(creds);
+    return true;
+  }
+
   async getCurrentUser(): Promise<User | null> {
     const session = this.getSession();
     if (!session) return null;
