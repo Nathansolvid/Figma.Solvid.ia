@@ -694,6 +694,15 @@ export function AppContent() {
     }
   };
 
+  // Toggle a collapsible group
+  const toggleGroup = (group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group); else next.add(group);
+      return next;
+    });
+  };
+
   // Helper: standard nav item
   const renderNavItem = (
     id: ViewType,
@@ -722,6 +731,49 @@ export function AppContent() {
     );
   };
 
+  // Helper: collapsible section header with chevron
+  const renderSectionHeader = (
+    groupId: string,
+    defaultView: ViewType,
+    label: string,
+    icon: React.ReactNode,
+    childViews: string[],
+  ) => {
+    const isChildActive = childViews.includes(currentView as string) || currentView === defaultView;
+    const isCollapsed = collapsedGroups.has(groupId);
+    return (
+      <button
+        key={groupId}
+        onClick={() => {
+          toggleGroup(groupId);
+          // Also navigate to the default view if not already on a child
+          if (!childViews.includes(currentView as string) && currentView !== defaultView) {
+            navigateToView(defaultView);
+          }
+        }}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
+        style={{
+          borderLeft: isChildActive ? '2.5px solid #52B788' : '2.5px solid transparent',
+          background: isChildActive ? 'rgba(45,122,85,0.25)' : 'transparent',
+          color: isChildActive ? '#ffffff' : 'rgba(255,255,255,0.65)',
+          fontWeight: isChildActive ? 500 : 400,
+          fontSize: '13px',
+        }}
+      >
+        {icon}
+        {sidebarOpen && (
+          <>
+            <span className="flex-1">{label}</span>
+            {isCollapsed
+              ? <ChevronRight className="h-3 w-3 opacity-40" />
+              : <ChevronDown className="h-3 w-3 opacity-40" />
+            }
+          </>
+        )}
+      </button>
+    );
+  };
+
   // Helpers for expandable chevron
   const Chevron = ({ expanded }: { expanded: boolean }) => (
     <svg
@@ -733,15 +785,7 @@ export function AppContent() {
     </svg>
   );
 
-  const toggleGroup = (group: string) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group); else next.add(group);
-      return next;
-    });
-  };
-
-  // Helper: render a collapsible group header
+  // Helper: render a collapsible group header (legacy — kept for backward compat)
   const renderGroupHeader = (groupKey: string, label: string, icon: React.ReactNode) => {
     const isCollapsed = collapsedGroups.has(groupKey);
     return (
@@ -855,18 +899,18 @@ export function AppContent() {
             </div>
           )}
 
-          {/* 3. Collecte — always show sub-items */}
-          {renderNavItem("import", "Collecte", <Upload className="h-4 w-4 flex-shrink-0" />, currentView === "import" || currentView === "erp-connector" || currentView === "saisie-dossier" || currentView === "bibliotheque-templates")}
-          {sidebarOpen && (
+          {/* 3. Collecte — collapsible */}
+          {renderSectionHeader("collecte", "import", "Collecte", <Upload className="h-4 w-4 flex-shrink-0" />, ["import", "erp-connector", "saisie-dossier", "bibliotheque-templates"])}
+          {sidebarOpen && !collapsedGroups.has("collecte") && (
             <div className="ml-7 space-y-0.5 mb-1">
               {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-3.5 w-3.5 flex-shrink-0" />)}
               {renderNavItem("bibliotheque-templates", "Templates Excel", <Database className="h-3.5 w-3.5 flex-shrink-0" />)}
             </div>
           )}
 
-          {/* 4. Rapports — always show sub-items */}
-          {renderNavItem("exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, currentView === "exports-livrables" || currentView === "rapport-ia" || currentView === "audit-center" || currentView === "preuves-requises")}
-          {sidebarOpen && (
+          {/* 4. Rapports — collapsible */}
+          {renderSectionHeader("rapports", "exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, ["exports-livrables", "rapport-ia", "audit-center", "preuves-requises"])}
+          {sidebarOpen && !collapsedGroups.has("rapports") && (
             <div className="ml-7 space-y-0.5 mb-1">
               {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />)}
               {renderNavItem("audit-center", "Contrôle qualité", <Shield className="h-3.5 w-3.5 flex-shrink-0" />)}
@@ -874,9 +918,9 @@ export function AppContent() {
             </div>
           )}
 
-          {/* 5. Réglages — always show sub-items */}
-          {renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, currentView === "parametres" || currentView === "guide-aide" || currentView === "glossaire" || currentView === "historique" || currentView === "referentiels")}
-          {sidebarOpen && (
+          {/* 5. Réglages — collapsible */}
+          {renderSectionHeader("reglages", "parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, ["parametres", "guide-aide", "glossaire", "historique", "referentiels"])}
+          {sidebarOpen && !collapsedGroups.has("reglages") && (
             <div className="ml-7 space-y-0.5 mb-1">
               {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-3.5 w-3.5 flex-shrink-0" />)}
               {renderNavItem("glossaire", "Glossaire ESG", <BookOpen className="h-3.5 w-3.5 flex-shrink-0" />)}
