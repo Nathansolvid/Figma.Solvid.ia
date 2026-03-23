@@ -6,7 +6,7 @@
  *
  * 🆕 Phase 12 : Support des périodes (annuel / trimestriel)
  */
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import {
   idbGetValuesByDossierPeriod,
   idbGetAllPeriodsForDossier,
@@ -417,21 +417,27 @@ export function VSMEDataProvider({ children }: { children: ReactNode }) {
     return { values, statuts, loaded: true };
   }, [data]);
 
+  const value = useMemo(() => ({
+    getValues,
+    setValue,
+    loadDossier,
+    clearDossier,
+    getStats,
+    getStatsByPilier,
+    getActivePeriod,
+    setActivePeriod,
+    getAvailablePeriods,
+    loadAvailablePeriods,
+    getValueComparison,
+    computeAnnualValues,
+  }), [
+    getValues, setValue, loadDossier, clearDossier,
+    getStats, getStatsByPilier, getActivePeriod, setActivePeriod,
+    getAvailablePeriods, loadAvailablePeriods, getValueComparison, computeAnnualValues,
+  ]);
+
   return (
-    <VSMEDataContext.Provider value={{
-      getValues,
-      setValue,
-      loadDossier,
-      clearDossier,
-      getStats,
-      getStatsByPilier,
-      getActivePeriod,
-      setActivePeriod,
-      getAvailablePeriods,
-      loadAvailablePeriods,
-      getValueComparison,
-      computeAnnualValues,
-    }}>
+    <VSMEDataContext.Provider value={value}>
       {children}
     </VSMEDataContext.Provider>
   );

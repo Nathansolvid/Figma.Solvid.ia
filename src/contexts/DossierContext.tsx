@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback, ReactNode, useEffect } from 'react';
 import {
   idbGetDossiers,
   idbPutDossier,
@@ -73,8 +73,8 @@ export function DossierProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [currentUser?.organizationId]);
 
-  // ── CRUD ─────────────────────────────────────────────────────────────────
-  const createDossier = (data: Omit<Dossier, 'id' | 'createdAt' | 'status'>): string => {
+  // ── CRUD (memoized) ─────────────────────────────────────────────────────
+  const createDossier = useCallback((data: Omit<Dossier, 'id' | 'createdAt' | 'status'>): string => {
     const newDossier: Dossier = {
       ...data,
       id: `dossier-${uuidv4()}`,
@@ -86,11 +86,11 @@ export function DossierProvider({ children }: { children: ReactNode }) {
     setDossiers(prev => [...prev, newDossier]);
     idbPutDossier(newDossier);
     return newDossier.id;
-  };
+  }, [currentUser?.organizationId, currentUser?.id]);
 
-  const getDossier = (id: string) => dossiers.find(d => d.id === id);
+  const getDossier = useCallback((id: string) => dossiers.find(d => d.id === id), [dossiers]);
 
-  const updateDossier = (id: string, updates: Partial<Dossier>) => {
+  const updateDossier = useCallback((id: string, updates: Partial<Dossier>) => {
     setDossiers(prev =>
       prev.map(d => {
         if (d.id !== id) return d;
@@ -99,15 +99,19 @@ export function DossierProvider({ children }: { children: ReactNode }) {
         return updated;
       })
     );
-  };
+  }, []);
 
-  const deleteDossier = (id: string) => {
+  const deleteDossier = useCallback((id: string) => {
     setDossiers(prev => prev.filter(d => d.id !== id));
     idbDeleteDossier(id);
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    dossiers, loading, createDossier, getDossier, updateDossier, deleteDossier,
+  }), [dossiers, loading, createDossier, getDossier, updateDossier, deleteDossier]);
 
   return (
-    <DossierContext.Provider value={{ dossiers, loading, createDossier, getDossier, updateDossier, deleteDossier }}>
+    <DossierContext.Provider value={value}>
       {children}
     </DossierContext.Provider>
   );
