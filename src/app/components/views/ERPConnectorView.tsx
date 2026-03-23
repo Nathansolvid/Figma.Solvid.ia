@@ -300,17 +300,19 @@ function ConnectorCard({ connector, isConnected, onSelect, disabled }: {
 
   return (
     <Card
-      className={`cursor-pointer transition-all hover:shadow-md hover:border-emerald-300 ${
-        disabled ? 'opacity-60 hover:shadow-none hover:border-gray-200' : ''
+      className={`transition-all ${
+        disabled
+          ? 'opacity-50 cursor-not-allowed grayscale-[30%] border-gray-200 bg-gray-50'
+          : 'cursor-pointer hover:shadow-md hover:border-emerald-300'
       } ${isConnected ? 'border-emerald-400 bg-emerald-50/50' : ''}`}
-      onClick={onSelect}
+      onClick={disabled ? undefined : onSelect}
     >
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <span className="text-3xl">{connector.logo}</span>
             <div>
-              <h4 className="font-semibold text-gray-900">{connector.name}</h4>
+              <h4 className={`font-semibold ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{connector.name}</h4>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {connector.region.map(r => (
                   <span key={r} className="text-[10px] text-gray-400 uppercase">{r}</span>
@@ -325,8 +327,9 @@ function ConnectorCard({ connector, isConnected, onSelect, disabled }: {
             </Badge>
           )}
           {connector.status === 'coming_soon' && (
-            <Badge variant="outline" className="text-amber-600 border-amber-300">
-              Bientôt
+            <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+              <Clock className="h-3 w-3 mr-1" />
+              Bientôt disponible
             </Badge>
           )}
           {connector.status === 'beta' && (
