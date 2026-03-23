@@ -10,34 +10,38 @@ import {
 interface WelcomeModalProps {
   onClose: () => void;
   onNavigateGuide?: () => void;
+  onNavigateCreateDossier?: () => void;
 }
 
 const CONCEPTS = [
   {
     icon: "📂",
     title: "Dossier",
-    description: "Espace de travail pour un client et une année de reporting",
+    description: "Un espace de travail pour une entreprise et un exercice annuel",
   },
   {
     icon: "🔧",
-    title: "Parcours ESG",
-    description: "Standard ESG pré-configuré (ex\u00A0: VSME Complet)",
+    title: "Standard ESG",
+    description: "Le référentiel de reporting que vous suivez (VSME, ESRS...)",
   },
   {
     icon: "📝",
     title: "Donnée",
-    description: "Donnée ESG à renseigner (quantitative ou qualitative)",
+    description: "Les indicateurs ESG à renseigner (chiffres, textes, preuves)",
   },
   {
     icon: "📎",
     title: "Justificatif",
-    description: "Document justificatif à joindre",
+    description: "Les documents qui prouvent vos données (factures, rapports, certificats)",
   },
 ] as const;
 
-export function WelcomeModal({ onClose, onNavigateGuide }: WelcomeModalProps) {
+export function WelcomeModal({ onClose, onNavigateGuide, onNavigateCreateDossier }: WelcomeModalProps) {
   const handleCommencer = () => {
     localStorage.setItem("solvid-onboarding-done", "true");
+    if (onNavigateCreateDossier) {
+      onNavigateCreateDossier();
+    }
     onClose();
   };
 
@@ -105,7 +109,7 @@ export function WelcomeModal({ onClose, onNavigateGuide }: WelcomeModalProps) {
             onMouseEnter={(e) => { e.currentTarget.style.background = "#047857"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "#059669"; }}
           >
-            Commencer
+            Créer mon premier dossier
           </button>
           {onNavigateGuide && (
             <button

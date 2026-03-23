@@ -18,6 +18,12 @@ import {
   BookOpen,
   Plug,
   HelpCircle,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  BarChart3,
+  Wrench,
+  CircleHelp,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useDossiers } from "@/contexts/DossierContext";
@@ -90,23 +96,23 @@ type ViewType =
 const VIEW_LABELS: Record<ViewType, string> = {
   "quick-start": "Démarrage",
   "dashboard": "Tableau de bord",
-  "referentiels": "Standards VSME",
+  "referentiels": "Référentiels & Standards",
   "vsme-detail": "Standard",
-  "saisie-dossier": "Saisie des données",
-  "dossiers": "Mes Dossiers",
+  "saisie-dossier": "Saisie indicateurs",
+  "dossiers": "Dossier actif",
   "creation-dossier": "Nouveau dossier",
   "detail-dossier": "Dossier",
   "rapport-ia": "Rapport IA",
   "import": "Import données",
   "kpis": "Chiffres clés",
-  "evidence-vault": "Justificatifs & Documents",
-  "checklist-workflow": "Checklist suivi",
-  "exports-livrables": "Exports",
-  "bibliotheque-workflows": "Parcours ESG",
-  "bibliotheque-templates": "Modèles Excel",
-  "audit-center": "Centre de vérification",
+  "evidence-vault": "Justificatifs",
+  "checklist-workflow": "Suivi d'avancement",
+  "exports-livrables": "Exports & Livrables",
+  "bibliotheque-workflows": "Référentiels & Standards",
+  "bibliotheque-templates": "Templates de collecte",
+  "audit-center": "Contrôle qualité",
   "audit-trail": "Historique",
-  "preuves-workflow": "Justificatifs requis",
+  "preuves-workflow": "Justificatifs",
   "parametres": "Réglages",
   "erp-connector": "Connecteurs ERP",
   "guide-aide": "Guide & Aide",
@@ -160,6 +166,9 @@ export function AppContent() {
   // (legacy sidebar expand states — kept to avoid unused-variable errors)
   const [_referentielsExpanded] = useState(true);
   const [_dossiersExpanded] = useState(false);
+
+  // Collapsible sidebar groups
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Current referentiel for detail view
   const [referentielId, setReferentielId] = useState<string>("vsme-complet");
@@ -368,6 +377,31 @@ export function AppContent() {
           />
         );
       case "dashboard":
+        if (dossiers.length === 0) {
+          return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="bg-white rounded-2xl shadow-lg border border-[#E2EDE7] p-10 max-w-lg w-full text-center space-y-5">
+                <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)' }}>
+                  <FolderOpen className="h-8 w-8" style={{ color: '#2D7A55' }} />
+                </div>
+                <h2 className="text-xl font-bold" style={{ color: '#0A3B2E' }}>
+                  Bienvenue sur Solvid.IA
+                </h2>
+                <p className="text-sm" style={{ color: '#6b7280' }}>
+                  Commencez par créer votre premier dossier ESG pour accéder à l'ensemble des fonctionnalités de la plateforme.
+                </p>
+                <button
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold text-sm transition-all hover:shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #2D7A55, #0A3B2E)' }}
+                  onClick={() => navigateToView('creation-dossier')}
+                >
+                  <Plus className="h-5 w-5" />
+                  Créer votre premier dossier ESG
+                </button>
+              </div>
+            </div>
+          );
+        }
         return (
           <DashboardUniversal
             key={`dashboard-${navigationCounter}`}
@@ -597,6 +631,38 @@ export function AppContent() {
     </svg>
   );
 
+  const toggleGroup = (group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group); else next.add(group);
+      return next;
+    });
+  };
+
+  // Helper: render a collapsible group header
+  const renderGroupHeader = (groupKey: string, label: string, icon: React.ReactNode) => {
+    const isCollapsed = collapsedGroups.has(groupKey);
+    return (
+      <button
+        className="w-full flex items-center gap-2 px-2.5 pt-3 pb-1.5 transition-all"
+        style={{ color: 'rgba(255,255,255,0.25)' }}
+        onClick={() => toggleGroup(groupKey)}
+        onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)'; }}
+      >
+        {icon}
+        <span className="text-[9px] font-semibold uppercase flex-1 text-left" style={{ letterSpacing: '1.5px' }}>
+          {label}
+        </span>
+        {isCollapsed ? (
+          <ChevronRight className="h-3 w-3 flex-shrink-0" />
+        ) : (
+          <ChevronDown className="h-3 w-3 flex-shrink-0" />
+        )}
+      </button>
+    );
+  };
+
   const _isDossiersActive = currentView === "dossiers" || currentView === "creation-dossier" || currentView === "detail-dossier";
 
   return (
@@ -667,7 +733,7 @@ export function AppContent() {
           {sidebarOpen && (
             <div className="flex items-center justify-between px-2.5 pt-1 pb-1.5">
               <p className="text-[9px] font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-                Contexte client
+                Dossier actif
               </p>
               {activeDossier && (
                 <button
@@ -944,39 +1010,47 @@ export function AppContent() {
           {/* ── Séparateur ── */}
           <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '6px 10px' }} />
 
-          {/* ── Outils ── */}
-          {sidebarOpen && (
-            <p className="text-[9px] font-semibold uppercase px-2.5 pt-1 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-              Outils
-            </p>
+          {/* ══ COLLECTE & DONNÉES ══ */}
+          {sidebarOpen && renderGroupHeader('collecte', 'Collecte & Données', <Database className="h-3 w-3 flex-shrink-0" />)}
+          {!collapsedGroups.has('collecte') && (
+            <>
+              {renderNavItem("import", "Import données", <Upload className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-4 w-4 flex-shrink-0" />)}
+              {activeDossier && renderNavItem("saisie-dossier", "Saisie indicateurs", <BarChart3 className="h-4 w-4 flex-shrink-0" />)}
+            </>
           )}
-          {renderNavItem("import", "Import données", <Upload className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("erp-connector", "Connecteurs ERP", <Plug className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("preuves-workflow", "Justificatifs requis", <ClipboardCheck className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("exports-livrables", "Exports", <FileText className="h-4 w-4 flex-shrink-0" />)}
-          {isAuditorOrAdmin && renderNavItem("audit-center", "Centre de vérification", <Search className="h-4 w-4 flex-shrink-0" />)}
 
-          {/* ── Paramètres ── */}
-          {sidebarOpen && (
-            <p className="text-[9px] font-semibold uppercase px-2.5 pt-4 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-              Paramètres
-            </p>
+          {/* ══ RAPPORTS & AUDIT ══ */}
+          {sidebarOpen && renderGroupHeader('rapports', 'Rapports & Audit', <FileText className="h-3 w-3 flex-shrink-0" />)}
+          {!collapsedGroups.has('rapports') && (
+            <>
+              {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("exports-livrables", "Exports & Livrables", <FileText className="h-4 w-4 flex-shrink-0" />)}
+              {isAuditorOrAdmin && renderNavItem("audit-center", "Contrôle qualité", <Search className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("preuves-workflow", "Justificatifs", <ClipboardCheck className="h-4 w-4 flex-shrink-0" />)}
+            </>
           )}
-          {renderNavItem("bibliotheque-workflows", "Parcours ESG", <Activity className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("bibliotheque-templates", "Modèles Excel", <FileText className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("checklist-workflow", "Checklist suivi", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("audit-trail", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
-          {canAccessParams && renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />)}
 
-          {/* ── Aide ── */}
-          {sidebarOpen && (
-            <p className="text-[9px] font-semibold uppercase px-2.5 pt-4 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '1.5px' }}>
-              Aide
-            </p>
+          {/* ══ CONFIGURATION ══ */}
+          {sidebarOpen && renderGroupHeader('config', 'Configuration', <Wrench className="h-3 w-3 flex-shrink-0" />)}
+          {!collapsedGroups.has('config') && (
+            <>
+              {renderNavItem("bibliotheque-workflows", "Référentiels & Standards", <Activity className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("bibliotheque-templates", "Templates de collecte", <FileText className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("checklist-workflow", "Suivi d'avancement", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("audit-trail", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
+              {canAccessParams && renderNavItem("parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />)}
+            </>
           )}
-          {renderNavItem("guide-aide", "Guide & Aide", <BookOpen className="h-4 w-4 flex-shrink-0" />)}
-          {renderNavItem("glossaire", "Glossaire ESG", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
+
+          {/* ══ AIDE ══ */}
+          {sidebarOpen && renderGroupHeader('aide', 'Aide', <CircleHelp className="h-3 w-3 flex-shrink-0" />)}
+          {!collapsedGroups.has('aide') && (
+            <>
+              {renderNavItem("guide-aide", "Guide & Aide", <BookOpen className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("glossaire", "Glossaire ESG", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
+            </>
+          )}
         </nav>
 
         {/* ── Footer: Déconnexion ── */}
@@ -1063,6 +1137,9 @@ export function AppContent() {
           onNavigateGuide={() => {
             setCurrentView("guide-aide");
             setShowWelcome(false);
+          }}
+          onNavigateCreateDossier={() => {
+            setCurrentView("creation-dossier");
           }}
         />
       )}

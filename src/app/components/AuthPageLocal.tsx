@@ -215,6 +215,13 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => toast.info("Contactez votre administrateur pour réinitialiser votre mot de passe", { description: "contact@solvid.ia" })}
+                      className="text-xs text-emerald-700 hover:underline mt-1"
+                    >
+                      Mot de passe oublié ?
+                    </button>
                   </div>
                 </CardContent>
 
@@ -371,11 +378,6 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
             </TabsContent>
           </Tabs>
         </Card>
-
-        {/* Admin hint for first launch */}
-        <div className="text-center text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
-          Premier lancement ? Connectez-vous avec <span className="font-mono font-medium text-gray-700">nathan.glatt@icloud.com</span>
-        </div>
 
         {/* Footer with legal links */}
         <div className="text-center space-y-1">
