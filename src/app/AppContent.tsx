@@ -24,6 +24,7 @@ import {
   BarChart3,
   Wrench,
   CircleHelp,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useDossiers } from "@/contexts/DossierContext";
@@ -379,25 +380,95 @@ export function AppContent() {
       case "dashboard":
         if (dossiers.length === 0) {
           return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-              <div className="bg-white rounded-2xl shadow-lg border border-[#E2EDE7] p-10 max-w-lg w-full text-center space-y-5">
-                <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #E8F5E9, #C8E6C9)' }}>
-                  <FolderOpen className="h-8 w-8" style={{ color: '#2D7A55' }} />
+            <div className="max-w-4xl mx-auto p-6 space-y-8">
+              {/* Hero section */}
+              <div className="rounded-2xl p-8 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0A3B2E 0%, #2D7A55 100%)' }}>
+                <div className="relative z-10">
+                  <h1 className="text-2xl font-bold mb-2">Bienvenue sur Solvid.IA</h1>
+                  <p className="text-white/80 text-sm mb-6 max-w-md">
+                    Votre plateforme de conformité ESG & CSRD. Structurez votre reporting, collectez vos données et générez des rapports audit-ready.
+                  </p>
+                  <button
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:shadow-lg"
+                    style={{ background: 'white', color: '#0A3B2E' }}
+                    onClick={() => navigateToView('creation-dossier')}
+                  >
+                    <Plus className="h-5 w-5" />
+                    Créer mon premier dossier ESG
+                  </button>
                 </div>
-                <h2 className="text-xl font-bold" style={{ color: '#0A3B2E' }}>
-                  Bienvenue sur Solvid.IA
-                </h2>
-                <p className="text-sm" style={{ color: '#6b7280' }}>
-                  Commencez par créer votre premier dossier ESG pour accéder à l'ensemble des fonctionnalités de la plateforme.
-                </p>
-                <button
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold text-sm transition-all hover:shadow-md"
-                  style={{ background: 'linear-gradient(135deg, #2D7A55, #0A3B2E)' }}
-                  onClick={() => navigateToView('creation-dossier')}
-                >
-                  <Plus className="h-5 w-5" />
-                  Créer votre premier dossier ESG
-                </button>
+                <div className="absolute right-8 top-1/2 -translate-y-1/2 opacity-10 text-[120px] font-bold">ESG</div>
+              </div>
+
+              {/* KPI cards (empty state) */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0</div>
+                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Dossiers actifs</div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0%</div>
+                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Complétion moyenne</div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                  <div className="text-3xl font-bold" style={{ color: '#0A3B2E' }}>0/47</div>
+                  <div className="text-xs mt-1" style={{ color: '#6b7280' }}>Indicateurs VSME remplis</div>
+                </div>
+              </div>
+
+              {/* Quick actions */}
+              <div>
+                <h2 className="text-lg font-semibold mb-3" style={{ color: '#0A3B2E' }}>Démarrage rapide</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => navigateToView('creation-dossier')}
+                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#E8F5E9' }}>
+                        <Plus className="h-5 w-5" style={{ color: '#2D7A55' }} />
+                      </div>
+                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Créer un dossier</span>
+                    </div>
+                    <p className="text-xs" style={{ color: '#6b7280' }}>Initialisez un exercice annuel pour un client</p>
+                  </button>
+                  <button
+                    onClick={() => navigateToView('import')}
+                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#EFF6FF' }}>
+                        <FileSpreadsheet className="h-5 w-5" style={{ color: '#3B82F6' }} />
+                      </div>
+                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Importer des données</span>
+                    </div>
+                    <p className="text-xs" style={{ color: '#6b7280' }}>Importez un fichier Excel ou CSV avec vos données ESG</p>
+                  </button>
+                  <button
+                    onClick={() => navigateToView('referentiels')}
+                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#F5F3FF' }}>
+                        <BookOpen className="h-5 w-5" style={{ color: '#7C3AED' }} />
+                      </div>
+                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Explorer les référentiels</span>
+                    </div>
+                    <p className="text-xs" style={{ color: '#6b7280' }}>VSME, ESRS, Bilan Carbone, Social Baseline...</p>
+                  </button>
+                  <button
+                    onClick={() => navigateToView('guide-aide')}
+                    className="bg-white rounded-xl border border-gray-100 p-5 text-left hover:border-emerald-200 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#FEF3C7' }}>
+                        <HelpCircle className="h-5 w-5" style={{ color: '#D97706' }} />
+                      </div>
+                      <span className="font-semibold text-sm" style={{ color: '#0A3B2E' }}>Guide & Aide</span>
+                    </div>
+                    <p className="text-xs" style={{ color: '#6b7280' }}>Tutoriels, glossaire ESG et FAQ</p>
+                  </button>
+                </div>
               </div>
             </div>
           );
