@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import { dataProvider } from '@/services/dataProvider';
 
-// Types pour les données de matérialité
+// ── Types ────────────────────────────────────────────────────────────────────
+
 export interface MaterialityIssue {
   id: string;
   name: string;
@@ -14,7 +16,6 @@ export interface MaterialityIssue {
   auditStatus?: "valide" | "reserve" | "invalide";
 }
 
-// Types pour les données ESRS
 export interface ESRSStandard {
   code: string;
   name: string;
@@ -31,11 +32,10 @@ export interface ESRSDataPoint {
   type: 'quantitative' | 'qualitative';
   mandatory: boolean;
   completed: boolean;
-  value?: any;
+  value?: string | number | null;
   evidence?: string[];
 }
 
-// Types pour les données quantitatives
 export interface QuantitativeData {
   id: string;
   indicatorCode: string;
@@ -50,7 +50,6 @@ export interface QuantitativeData {
   comments?: string;
 }
 
-// Types pour les données qualitatives
 export interface QualitativeData {
   id: string;
   dataPointCode: string;
@@ -65,7 +64,6 @@ export interface QualitativeData {
   comments?: string;
 }
 
-// Types pour la collaboration
 export interface TeamMember {
   id: string;
   name: string;
@@ -84,7 +82,8 @@ export interface Comment {
   resolved: boolean;
 }
 
-// État global des données d'un dossier
+// ── DossierData shape ────────────────────────────────────────────────────────
+
 interface DossierData {
   materialityIssues: MaterialityIssue[];
   esrsStandards: ESRSStandard[];
@@ -94,8 +93,22 @@ interface DossierData {
   comments: Comment[];
 }
 
+const EMPTY_DATA: DossierData = {
+  materialityIssues: [],
+  esrsStandards: [],
+  quantitativeData: [],
+  qualitativeData: [],
+  teamMembers: [],
+  comments: [],
+};
+
+// IDB store key for dossier data
+const IDB_STORE = 'dossier_data' as const;
+
+// ── Context type ─────────────────────────────────────────────────────────────
+
 interface DossierDataContextType {
-  getDossierData: (dossierId: string) => DossierData | undefined;
+  getDossierData: (dossierId: string) => DossierData;
   updateMaterialityIssues: (dossierId: string, issues: MaterialityIssue[]) => void;
   addMaterialityIssue: (dossierId: string, issue: MaterialityIssue) => void;
   updateESRSStandards: (dossierId: string, standards: ESRSStandard[]) => void;
@@ -105,212 +118,169 @@ interface DossierDataContextType {
   updateQualitativeData: (dossierId: string, dataId: string, data: Partial<QualitativeData>) => void;
   addTeamMember: (dossierId: string, member: TeamMember) => void;
   addComment: (dossierId: string, comment: Comment) => void;
+  loading: boolean;
 }
 
 const DossierDataContext = createContext<DossierDataContextType | undefined>(undefined);
 
+// ── Persistence helpers ──────────────────────────────────────────────────────
+
+const IDB_KEY_PREFIX = 'dossier-data::';
+
+async function loadFromIDB(dossierId: string): Promise<DossierData | null> {
+  try {
+    const stored = localStorage.getItem(`${IDB_KEY_PREFIX}${dossierId}`);
+    if (stored) return JSON.parse(stored);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveToIDB(dossierId: string, data: DossierData): void {
+  try {
+    localStorage.setItem(`${IDB_KEY_PREFIX}${dossierId}`, JSON.stringify(data));
+  } catch (e) {
+    console.warn('[DossierData] Failed to persist:', e);
+  }
+}
+
+// ── Provider ─────────────────────────────────────────────────────────────────
+
 export function DossierDataProvider({ children }: { children: ReactNode }) {
-  // État: Map de dossierId -> DossierData
   const [dossierDataMap, setDossierDataMap] = useState<Record<string, DossierData>>({});
+  const [loading, setLoading] = useState(true);
+  const [loadedDossiers, setLoadedDossiers] = useState<Set<string>>(new Set());
 
-  const getDossierData = (dossierId: string): DossierData | undefined => {
-    // Si le dossier n'existe pas encore, retourner un état vide
-    if (!dossierDataMap[dossierId]) {
-      return {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-    }
-    return dossierDataMap[dossierId];
-  };
+  // Load all persisted dossier data on mount
+  useEffect(() => {
+    const loadAll = () => {
+      try {
+        const map: Record<string, DossierData> = {};
+        const loaded = new Set<string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith(IDB_KEY_PREFIX)) {
+            const dossierId = key.slice(IDB_KEY_PREFIX.length);
+            try {
+              const data = JSON.parse(localStorage.getItem(key) || '');
+              if (data) {
+                map[dossierId] = { ...EMPTY_DATA, ...data };
+                loaded.add(dossierId);
+              }
+            } catch { /* skip corrupted entries */ }
+          }
+        }
+        setDossierDataMap(map);
+        setLoadedDossiers(loaded);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAll();
+  }, []);
 
-  const updateMaterialityIssues = (dossierId: string, issues: MaterialityIssue[]) => {
-    setDossierDataMap(prev => ({
+  // Helper: update map + persist
+  const updateDossier = useCallback((dossierId: string, updater: (prev: DossierData) => DossierData) => {
+    setDossierDataMap(prev => {
+      const existing = prev[dossierId] || { ...EMPTY_DATA };
+      const updated = updater(existing);
+      // Persist async (fire-and-forget)
+      saveToIDB(dossierId, updated);
+      return { ...prev, [dossierId]: updated };
+    });
+  }, []);
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  const getDossierData = useCallback((dossierId: string): DossierData => {
+    return dossierDataMap[dossierId] || EMPTY_DATA;
+  }, [dossierDataMap]);
+
+  const updateMaterialityIssues = useCallback((dossierId: string, issues: MaterialityIssue[]) => {
+    updateDossier(dossierId, prev => ({ ...prev, materialityIssues: issues }));
+  }, [updateDossier]);
+
+  const addMaterialityIssue = useCallback((dossierId: string, issue: MaterialityIssue) => {
+    updateDossier(dossierId, prev => ({
       ...prev,
-      [dossierId]: {
-        ...(prev[dossierId] || {
-          materialityIssues: [],
-          esrsStandards: [],
-          quantitativeData: [],
-          qualitativeData: [],
-          teamMembers: [],
-          comments: [],
-        }),
-        materialityIssues: issues,
-      },
+      materialityIssues: [...prev.materialityIssues, issue],
     }));
-  };
+  }, [updateDossier]);
 
-  const addMaterialityIssue = (dossierId: string, issue: MaterialityIssue) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId] || {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          materialityIssues: [...existing.materialityIssues, issue],
-        },
-      };
-    });
-  };
+  const updateESRSStandards = useCallback((dossierId: string, standards: ESRSStandard[]) => {
+    updateDossier(dossierId, prev => ({ ...prev, esrsStandards: standards }));
+  }, [updateDossier]);
 
-  const updateESRSStandards = (dossierId: string, standards: ESRSStandard[]) => {
-    setDossierDataMap(prev => ({
+  const addQuantitativeData = useCallback((dossierId: string, data: QuantitativeData) => {
+    updateDossier(dossierId, prev => ({
       ...prev,
-      [dossierId]: {
-        ...(prev[dossierId] || {
-          materialityIssues: [],
-          esrsStandards: [],
-          quantitativeData: [],
-          qualitativeData: [],
-          teamMembers: [],
-          comments: [],
-        }),
-        esrsStandards: standards,
-      },
+      quantitativeData: [...prev.quantitativeData, data],
     }));
-  };
+  }, [updateDossier]);
 
-  const addQuantitativeData = (dossierId: string, data: QuantitativeData) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId] || {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          quantitativeData: [...existing.quantitativeData, data],
-        },
-      };
-    });
-  };
+  const updateQuantitativeData = useCallback((dossierId: string, dataId: string, data: Partial<QuantitativeData>) => {
+    updateDossier(dossierId, prev => ({
+      ...prev,
+      quantitativeData: prev.quantitativeData.map(item =>
+        item.id === dataId ? { ...item, ...data } : item
+      ),
+    }));
+  }, [updateDossier]);
 
-  const updateQuantitativeData = (dossierId: string, dataId: string, data: Partial<QuantitativeData>) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId];
-      if (!existing) return prev;
+  const addQualitativeData = useCallback((dossierId: string, data: QualitativeData) => {
+    updateDossier(dossierId, prev => ({
+      ...prev,
+      qualitativeData: [...prev.qualitativeData, data],
+    }));
+  }, [updateDossier]);
 
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          quantitativeData: existing.quantitativeData.map(item =>
-            item.id === dataId ? { ...item, ...data } : item
-          ),
-        },
-      };
-    });
-  };
+  const updateQualitativeData = useCallback((dossierId: string, dataId: string, data: Partial<QualitativeData>) => {
+    updateDossier(dossierId, prev => ({
+      ...prev,
+      qualitativeData: prev.qualitativeData.map(item =>
+        item.id === dataId ? { ...item, ...data } : item
+      ),
+    }));
+  }, [updateDossier]);
 
-  const addQualitativeData = (dossierId: string, data: QualitativeData) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId] || {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          qualitativeData: [...existing.qualitativeData, data],
-        },
-      };
-    });
-  };
+  const addTeamMember = useCallback((dossierId: string, member: TeamMember) => {
+    updateDossier(dossierId, prev => ({
+      ...prev,
+      teamMembers: [...prev.teamMembers, member],
+    }));
+  }, [updateDossier]);
 
-  const updateQualitativeData = (dossierId: string, dataId: string, data: Partial<QualitativeData>) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId];
-      if (!existing) return prev;
+  const addComment = useCallback((dossierId: string, comment: Comment) => {
+    updateDossier(dossierId, prev => ({
+      ...prev,
+      comments: [...prev.comments, comment],
+    }));
+  }, [updateDossier]);
 
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          qualitativeData: existing.qualitativeData.map(item =>
-            item.id === dataId ? { ...item, ...data } : item
-          ),
-        },
-      };
-    });
-  };
+  // ── Memoized value ─────────────────────────────────────────────────────────
 
-  const addTeamMember = (dossierId: string, member: TeamMember) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId] || {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          teamMembers: [...existing.teamMembers, member],
-        },
-      };
-    });
-  };
-
-  const addComment = (dossierId: string, comment: Comment) => {
-    setDossierDataMap(prev => {
-      const existing = prev[dossierId] || {
-        materialityIssues: [],
-        esrsStandards: [],
-        quantitativeData: [],
-        qualitativeData: [],
-        teamMembers: [],
-        comments: [],
-      };
-      return {
-        ...prev,
-        [dossierId]: {
-          ...existing,
-          comments: [...existing.comments, comment],
-        },
-      };
-    });
-  };
+  const value = useMemo(() => ({
+    getDossierData,
+    updateMaterialityIssues,
+    addMaterialityIssue,
+    updateESRSStandards,
+    addQuantitativeData,
+    updateQuantitativeData,
+    addQualitativeData,
+    updateQualitativeData,
+    addTeamMember,
+    addComment,
+    loading,
+  }), [
+    getDossierData, updateMaterialityIssues, addMaterialityIssue,
+    updateESRSStandards, addQuantitativeData, updateQuantitativeData,
+    addQualitativeData, updateQualitativeData, addTeamMember, addComment,
+    loading,
+  ]);
 
   return (
-    <DossierDataContext.Provider
-      value={{
-        getDossierData,
-        updateMaterialityIssues,
-        addMaterialityIssue,
-        updateESRSStandards,
-        addQuantitativeData,
-        updateQuantitativeData,
-        addQualitativeData,
-        updateQualitativeData,
-        addTeamMember,
-        addComment,
-      }}
-    >
+    <DossierDataContext.Provider value={value}>
       {children}
     </DossierDataContext.Provider>
   );
