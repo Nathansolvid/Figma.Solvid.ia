@@ -875,27 +875,70 @@ export function AppContent() {
           {/* 2. Mes dossiers — with active dossier badge */}
           {renderNavItem("dossiers", "Mes dossiers", <FolderOpen className="h-4 w-4 flex-shrink-0" />, currentView === "dossiers" || currentView === "creation-dossier" || currentView === "detail-dossier")}
           {activeDossier && sidebarOpen && (
-            <div
-              className="ml-7 mr-2 mb-1 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all flex items-center gap-2"
-              style={{ background: 'rgba(45,122,85,0.18)', border: '1px solid rgba(82,183,136,0.22)' }}
-              onClick={() => navigateToView("detail-dossier")}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.28)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.18)'; }}
-            >
+            <div className="ml-7 mr-2 mb-1 space-y-1">
+              {/* Dossier badge */}
               <div
-                className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[9px] font-bold text-white"
-                style={{ background: 'rgba(82,183,136,0.4)' }}
+                className="px-2.5 py-1.5 rounded-lg cursor-pointer transition-all flex items-center gap-2"
+                style={{ background: 'rgba(45,122,85,0.18)', border: '1px solid rgba(82,183,136,0.22)' }}
+                onClick={() => navigateToView("detail-dossier")}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.28)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,122,85,0.18)'; }}
               >
-                {(activeDossier.providerOrg || activeDossier.name)?.[0]?.toUpperCase() ?? '?'}
+                <div
+                  className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[9px] font-bold text-white"
+                  style={{ background: 'rgba(82,183,136,0.4)' }}
+                >
+                  {(activeDossier.providerOrg || activeDossier.name)?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium text-white leading-tight truncate">
+                    {activeDossier.providerOrg || activeDossier.name}
+                  </p>
+                  <p className="text-[9px] leading-tight" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    {activeDossier.fiscalYear} · {activeDossier.missionType}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-medium text-white leading-tight truncate">
-                  {activeDossier.providerOrg || activeDossier.name}
-                </p>
-                <p className="text-[9px] leading-tight" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  {activeDossier.fiscalYear}
-                </p>
-              </div>
+              {/* Workflows/parcours du dossier */}
+              {(activeDossier.selectedWorkflows ?? []).length > 0 && (
+                <div className="space-y-0.5 pl-1">
+                  {(activeDossier.selectedWorkflows ?? []).map(wfId => {
+                    const wf = getWorkflowById(wfId);
+                    if (!wf) return null;
+                    return (
+                      <button
+                        key={wfId}
+                        onClick={() => navigateToWorkflowView(wfId, "saisie-dossier")}
+                        className="w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-all"
+                        style={{
+                          background: activeWorkflowId === wfId ? 'rgba(82,183,136,0.2)' : 'transparent',
+                          color: activeWorkflowId === wfId ? '#52B788' : 'rgba(255,255,255,0.45)',
+                          fontSize: '10px',
+                        }}
+                        onMouseEnter={e => { if (activeWorkflowId !== wfId) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                        onMouseLeave={e => { if (activeWorkflowId !== wfId) e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: activeWorkflowId === wfId ? '#52B788' : 'rgba(255,255,255,0.25)' }} />
+                        <span className="truncate">{wf.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Saisie directe */}
+              <button
+                onClick={() => navigateToSaisie(currentDossierId!)}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-all"
+                style={{
+                  color: currentView === 'saisie-dossier' ? '#52B788' : 'rgba(255,255,255,0.45)',
+                  fontSize: '10px',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                onMouseLeave={e => { if (currentView !== 'saisie-dossier') e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: currentView === 'saisie-dossier' ? '#52B788' : 'rgba(255,255,255,0.25)' }} />
+                <span>Saisie indicateurs</span>
+              </button>
             </div>
           )}
 
