@@ -800,11 +800,18 @@ export function DetailDossier({ dossierId, onBack, onNavigate }: DetailDossierPr
                           })()}
                           <Button
                             size="sm"
+                            className="bg-emerald-600 text-white hover:bg-emerald-700"
+                            onClick={() => onNavigate?.(`workflow:${workflow.id}:saisie` as any)}
+                          >
+                            Remplir les indicateurs →
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => onNavigate?.("bibliotheque-templates")}
                           >
                             <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
-                            Voir templates
+                            Templates
                           </Button>
                         </div>
                       </div>

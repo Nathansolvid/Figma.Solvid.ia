@@ -251,6 +251,16 @@ export function AppContent() {
   };
 
   const navigateToView = (view: ViewType) => {
+    // Handle workflow:xxx:saisie deep links from DetailDossier
+    const viewStr = view as string;
+    if (viewStr.startsWith('workflow:') && viewStr.endsWith(':saisie')) {
+      const workflowId = viewStr.split(':')[1];
+      if (workflowId && currentDossierId) {
+        navigateToWorkflowView(workflowId, 'saisie-dossier');
+        return;
+      }
+    }
+
     setCurrentView(view);
     // Expose current page for contextual AI suggestions
     (window as any).__solvid_current_page = view;
