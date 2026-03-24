@@ -1,19 +1,17 @@
 /**
- * AUTH PAGE - Authentification locale (email + mot de passe)
- *
- * Inscription publique + connexion.
- * Les inscriptions sont validées par un admin avant accès.
+ * AUTH PAGE — Connexion & Inscription Solvid.IA
+ * Design moderne style app (split-screen branding + form)
  */
 
 import React, { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/app/components/ui/select';
-import { Card, CardContent, CardFooter } from '@/app/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Checkbox } from '@/app/components/ui/checkbox';
-import { Shield, Loader2, User, Building2, Mail, Lock } from 'lucide-react';
+import {
+  Shield, Loader2, Mail, Lock, User, Building2,
+  ArrowRight, ArrowLeft, CheckCircle2, Eye, EyeOff,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User as UserType } from '@/contexts/UserContext';
 import { Role } from '@/permissions';
@@ -24,72 +22,41 @@ interface AuthPageLocalProps {
   onNavigate?: (view: string) => void;
 }
 
-export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
-  const [loading, setLoading] = useState(false);
+type AuthView = 'login' | 'signup' | 'signup-confirm' | 'reset' | 'reset-sent';
 
-  // Login form
+export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
+  const [view, setView] = useState<AuthView>('login');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Signup form
+  // Signup — step 1
   const [signupEmail, setSignupEmail] = useState('');
-  const [signupName, setSignupName] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  // Signup — step 2
+  const [signupName, setSignupName] = useState('');
   const [signupOrgName, setSignupOrgName] = useState('');
-  const [signupRole, setSignupRole] = useState<string>('CLIENT_OWNER');
-
-  // RGPD consent
+  const [signupRole, setSignupRole] = useState('CLIENT_OWNER');
   const [acceptCGU, setAcceptCGU] = useState(false);
   const [acceptAI, setAcceptAI] = useState(false);
+  const [signupStep, setSignupStep] = useState<1 | 2>(1);
 
-  // Password reset
-  const [showResetForm, setShowResetForm] = useState(false);
+  // Reset
   const [resetEmail, setResetEmail] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
-  const [resetTempPassword, setResetTempPassword] = useState('');
 
-  /**
-   * Password Reset — sends a reset email via Supabase
-   */
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetEmail.trim()) return;
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        resetEmail.toLowerCase().trim(),
-        { redirectTo: `${window.location.origin}` }
-      );
-      if (error) throw error;
-      setResetSuccess(true);
-      toast.success("Email envoyé !");
-    } catch (err: any) {
-      toast.error(err?.message || "Erreur lors de la réinitialisation");
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  /**
-   * Login
-   */
+  // ── Login ──────────────────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!loginEmail || !loginPassword) {
-      toast.error('Veuillez remplir tous les champs');
-      return;
-    }
-
+    if (!loginEmail || !loginPassword) { toast.error('Remplis tous les champs'); return; }
     setLoading(true);
-
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
-
       if (error) throw error;
       if (!data.user) throw new Error('Utilisateur introuvable');
 
@@ -98,7 +65,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
         ADMIN: Role.ADMIN, CONSULTANT: Role.CONSULTANT, CLIENT_OWNER: Role.CLIENT_OWNER,
         CLIENT_CONTRIBUTOR: Role.CLIENT_CONTRIBUTOR, AUDITOR: Role.AUDITOR, VIEWER: Role.VIEWER,
       };
-      const mappedUser: UserType = {
+      onLogin({
         id: data.user.id,
         name: meta.name || data.user.email?.split('@')[0] || 'Utilisateur',
         email: data.user.email || '',
@@ -107,39 +74,32 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
         organizationName: meta.organizationName || 'Mon Organisation',
         consentCGU: meta.consentCGU,
         consentAI: meta.consentAI,
-      };
-
-      onLogin(mappedUser);
-      toast.success('Connexion réussie !', { description: `Bienvenue ${mappedUser.name}` });
-    } catch (error: any) {
-      toast.error('Erreur de connexion', {
-        description: error?.message === 'Invalid login credentials'
-          ? 'Email ou mot de passe incorrect'
-          : error?.message || 'Vérifiez vos identifiants',
       });
+    } catch (err: any) {
+      toast.error(
+        err?.message === 'Invalid login credentials'
+          ? 'Email ou mot de passe incorrect'
+          : err?.message || 'Erreur de connexion'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Signup
-   */
+  // ── Signup step 1 → step 2 ─────────────────────────────────────────────────
+  const handleSignupStep1 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signupEmail || !signupPassword) { toast.error('Remplis tous les champs'); return; }
+    if (signupPassword.length < 8) { toast.error('Mot de passe : 8 caractères minimum'); return; }
+    setSignupStep(2);
+  };
+
+  // ── Signup submit ──────────────────────────────────────────────────────────
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!signupEmail || !signupName || !signupPassword) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
-    if (signupPassword.length < 8) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères');
-      return;
-    }
-
+    if (!signupName) { toast.error('Ton nom est requis'); return; }
+    if (!acceptCGU) { toast.error('Accepte les CGU pour continuer'); return; }
     setLoading(true);
-
     try {
       const { error } = await supabase.auth.signUp({
         email: signupEmail,
@@ -155,317 +115,379 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
           },
         },
       });
-
       if (error) throw error;
 
-      toast.success('Demande envoyée !', {
-        description: 'Vérifiez votre email pour confirmer votre compte.',
-        duration: 8000,
-      });
-      setSignupEmail(''); setSignupName(''); setSignupPassword('');
-      setSignupOrgName(''); setSignupRole('CLIENT_OWNER');
-      setAcceptCGU(false); setAcceptAI(false);
-    } catch (error: any) {
-      toast.error('Erreur lors de la création du compte', {
-        description: error?.message || 'Une erreur est survenue',
-      });
+      // Notify admin
+      fetch('/api/notify-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: signupName, email: signupEmail, org: signupOrgName, role: signupRole }),
+      }).catch(() => {});
+
+      setView('signup-confirm');
+    } catch (err: any) {
+      toast.error(err?.message || 'Erreur lors de la création du compte');
     } finally {
       setLoading(false);
     }
   };
 
-  // ---- Main Auth View ----
+  // ── Password reset ─────────────────────────────────────────────────────────
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      setView('reset-sent');
+    } catch (err: any) {
+      toast.error(err?.message || 'Erreur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Layout shell ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E8F3F0] to-white flex items-center justify-center p-4">
-
-      {/* Password Reset Modal */}
-      {showResetForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowResetForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
-                <Mail className="h-6 w-6 text-emerald-700" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Réinitialiser le mot de passe</h3>
-              <p className="text-sm text-gray-500 mt-1">Entrez l'email de votre compte</p>
+    <div className="min-h-screen flex">
+      {/* LEFT — Branding panel */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 p-10 text-white"
+        style={{ background: 'linear-gradient(145deg, #0A3B2E 0%, #0F5C44 60%, #059669 100%)' }}
+      >
+        <div>
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
             </div>
+            <span className="text-xl font-bold tracking-tight">Solvid<span className="text-emerald-300">.IA</span></span>
+          </div>
+          <h2 className="text-3xl font-bold leading-tight mb-4">
+            La plateforme ESG<br />Audit-Ready pour les PME
+          </h2>
+          <p className="text-white/70 text-sm leading-relaxed">
+            Collecte structurée, rapports VSME & CSRD, preuves traçables — tout en un.
+          </p>
+        </div>
 
-            {!resetSuccess ? (
-              <form onSubmit={handlePasswordReset} className="space-y-4">
-                <div>
-                  <Label>Email du compte</Label>
-                  <Input
-                    type="email"
-                    placeholder="votre@email.com"
-                    value={resetEmail}
-                    onChange={e => setResetEmail(e.target.value)}
-                    required
-                    autoFocus
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowResetForm(false)}>
-                    Annuler
-                  </Button>
-                  <Button type="submit" disabled={resetLoading} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-                    {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Réinitialiser"}
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
-                  <p className="text-sm text-emerald-800 font-medium mb-2">Email envoyé !</p>
-                  <p className="text-xs text-emerald-600">
-                    Un lien de réinitialisation a été envoyé à <strong>{resetEmail}</strong>. Vérifiez votre boîte mail.
-                  </p>
-                </div>
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => { setShowResetForm(false); setLoginEmail(resetEmail); }}
-                >
-                  Retour à la connexion
-                </Button>
+        <div className="space-y-4">
+          {[
+            { icon: '📊', text: '47 indicateurs VSME pré-configurés' },
+            { icon: '🔒', text: 'Données sécurisées & auditables' },
+            { icon: '🤖', text: 'Rapports générés par IA' },
+          ].map(item => (
+            <div key={item.text} className="flex items-center gap-3 text-sm text-white/80">
+              <span className="text-lg">{item.icon}</span>
+              {item.text}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-white/40">© 2026 Solvid. Tous droits réservés.</p>
+      </div>
+
+      {/* RIGHT — Form panel */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white">
+        <div className="w-full max-w-[400px] space-y-6">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-2">
+            <div className="inline-flex items-center gap-2">
+              <div className="w-8 h-8 bg-[#059669] rounded-lg flex items-center justify-center">
+                <Shield className="w-4 h-4 text-white" />
               </div>
-            )}
+              <span className="text-lg font-bold text-[#0A3B2E]">Solvid<span className="text-[#059669]">.IA</span></span>
+            </div>
           </div>
-        </div>
-      )}
 
-      <div className="w-full max-w-md space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#059669] rounded-2xl mb-4">
-            <Shield className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-[#0A3B2E]">
-            Solvid<span className="text-[#059669]">.IA</span>
-          </h1>
-          <p className="text-sm text-gray-600">Plateforme ESG Audit-Ready</p>
-        </div>
+          {/* ── LOGIN ── */}
+          {view === 'login' && (
+            <>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Content de te revoir</h1>
+                <p className="text-sm text-gray-500 mt-1">Connecte-toi à ton espace Solvid</p>
+              </div>
 
-        {/* Login/Signup Tabs */}
-        <Card className="shadow-lg">
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Connexion</TabsTrigger>
-              <TabsTrigger value="signup">Inscription</TabsTrigger>
-            </TabsList>
-
-            {/* LOGIN TAB */}
-            <TabsContent value="login">
-              <form onSubmit={handleLogin}>
-                <CardContent className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="loginEmail" className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" /> Email
-                    </Label>
-                    <Input
-                      id="loginEmail"
-                      type="email"
-                      placeholder="votre@email.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      required
-                    />
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="loginEmail">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="loginEmail" type="email" placeholder="ton@email.com" className="pl-9"
+                      value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="loginPassword" className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" /> Mot de passe
-                    </Label>
-                    <Input
-                      id="loginPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => { setShowResetForm(true); setResetSuccess(false); setResetTempPassword(''); }}
-                      className="text-xs text-emerald-700 hover:underline mt-1"
-                    >
-                      Mot de passe oublié ?
+                <div className="space-y-1.5">
+                  <Label htmlFor="loginPassword">Mot de passe</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="loginPassword" type={showPassword ? 'text' : 'password'} placeholder="••••••••"
+                      className="pl-9 pr-9" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
+                    <button type="button" onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </CardContent>
+                  <button type="button" onClick={() => { setResetEmail(loginEmail); setView('reset'); }}
+                    className="text-xs text-[#059669] hover:underline">
+                    Mot de passe oublié ?
+                  </button>
+                </div>
 
-                <CardFooter>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-[#059669] hover:bg-[#048558]"
-                  >
-                    {loading ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion...</>
-                    ) : (
-                      'Se connecter'
-                    )}
-                  </Button>
-                </CardFooter>
+                <Button type="submit" disabled={loading} className="w-full bg-[#059669] hover:bg-[#048558] h-11">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><span>Se connecter</span><ArrowRight className="w-4 h-4 ml-2" /></>}
+                </Button>
               </form>
-            </TabsContent>
 
-            {/* SIGNUP TAB */}
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup}>
-                <CardContent className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signupEmail" className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" /> Email
-                    </Label>
-                    <Input
-                      id="signupEmail"
-                      type="email"
-                      placeholder="votre@email.com"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required
-                    />
+              <p className="text-sm text-center text-gray-500">
+                Pas encore de compte ?{' '}
+                <button onClick={() => { setView('signup'); setSignupStep(1); }} className="text-[#059669] font-medium hover:underline">
+                  S'inscrire
+                </button>
+              </p>
+            </>
+          )}
+
+          {/* ── SIGNUP STEP 1 ── */}
+          {view === 'signup' && signupStep === 1 && (
+            <>
+              <div>
+                <button onClick={() => setView('login')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
+                  <ArrowLeft className="w-4 h-4" /> Retour
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Créer un compte</h1>
+                <p className="text-sm text-gray-500 mt-1">Étape 1 sur 2 — Tes identifiants</p>
+                <div className="flex gap-1 mt-3">
+                  <div className="h-1 flex-1 rounded-full bg-[#059669]" />
+                  <div className="h-1 flex-1 rounded-full bg-gray-200" />
+                </div>
+              </div>
+
+              <form onSubmit={handleSignupStep1} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sEmail">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="sEmail" type="email" placeholder="ton@email.com" className="pl-9"
+                      value={signupEmail} onChange={e => setSignupEmail(e.target.value)} required />
                   </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="signupName" className="flex items-center gap-2">
-                      <User className="h-4 w-4" /> Nom complet
-                    </Label>
-                    <Input
-                      id="signupName"
-                      type="text"
-                      placeholder="Jean Dupont"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      required
-                    />
+                <div className="space-y-1.5">
+                  <Label htmlFor="sPassword">Mot de passe</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="sPassword" type={showPassword ? 'text' : 'password'} placeholder="8 caractères minimum"
+                      className="pl-9 pr-9" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} required minLength={8} />
+                    <button type="button" onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signupPassword" className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" /> Mot de passe
-                    </Label>
-                    <Input
-                      id="signupPassword"
-                      type="password"
-                      placeholder="Minimum 8 caractères"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      required
-                      minLength={8}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signupOrgName" className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" /> Organisation
-                    </Label>
-                    <Input
-                      id="signupOrgName"
-                      type="text"
-                      placeholder="Ma Société"
-                      value={signupOrgName}
-                      onChange={(e) => setSignupOrgName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signupRole">Rôle</Label>
-                    <Select value={signupRole} onValueChange={setSignupRole}>
-                      <SelectTrigger id="signupRole">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CLIENT_OWNER">Directeur ESG</SelectItem>
-                        <SelectItem value="CONSULTANT">Consultant ESG</SelectItem>
-                        <SelectItem value="CLIENT_CONTRIBUTOR">Analyste données</SelectItem>
-                        <SelectItem value="AUDITOR">Auditeur externe</SelectItem>
-                        <SelectItem value="VIEWER">Observateur</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* RGPD Consent checkboxes */}
-                  <div className="space-y-3 pt-2 border-t border-gray-100">
-                    <div className="flex items-start gap-2">
-                      <Checkbox
-                        id="acceptCGU"
-                        checked={acceptCGU}
-                        onCheckedChange={(checked) => setAcceptCGU(checked === true)}
-                        className="mt-0.5"
-                      />
-                      <label htmlFor="acceptCGU" className="text-xs text-gray-600 leading-relaxed cursor-pointer">
-                        J'accepte les{' '}
-                        <button
-                          type="button"
-                          className="text-[#059669] underline hover:text-[#048558] font-medium"
-                          onClick={() => onNavigate?.('cgu')}
-                        >
-                          Conditions Générales d'Utilisation
-                        </button>{' '}
-                        et la{' '}
-                        <button
-                          type="button"
-                          className="text-[#059669] underline hover:text-[#048558] font-medium"
-                          onClick={() => onNavigate?.('politique-confidentialite')}
-                        >
-                          Politique de Confidentialité
-                        </button>
-                        {' '}<span className="text-red-500">*</span>
-                      </label>
+                  {signupPassword.length > 0 && (
+                    <div className="flex gap-1 mt-1">
+                      {[4, 6, 8, 10].map(n => (
+                        <div key={n} className={`h-1 flex-1 rounded-full transition-all ${signupPassword.length >= n ? 'bg-[#059669]' : 'bg-gray-200'}`} />
+                      ))}
                     </div>
-                    <div className="flex items-start gap-2">
-                      <Checkbox
-                        id="acceptAI"
-                        checked={acceptAI}
-                        onCheckedChange={(checked) => setAcceptAI(checked === true)}
-                        className="mt-0.5"
-                      />
-                      <label htmlFor="acceptAI" className="text-xs text-gray-500 leading-relaxed cursor-pointer">
-                        J'accepte que mes données ESG soient traitées par l'intelligence artificielle
-                        (Anthropic Claude) pour générer des rapports <span className="text-gray-400">(optionnel)</span>
-                      </label>
-                    </div>
-                  </div>
-                </CardContent>
+                  )}
+                </div>
 
-                <CardFooter>
-                  <Button
-                    type="submit"
-                    disabled={loading || !acceptCGU}
-                    className="w-full bg-[#059669] hover:bg-[#048558]"
-                  >
-                    {loading ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création...</>
-                    ) : (
-                      'Créer mon compte'
-                    )}
-                  </Button>
-                </CardFooter>
+                <Button type="submit" className="w-full bg-[#059669] hover:bg-[#048558] h-11">
+                  Continuer <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </form>
-            </TabsContent>
-          </Tabs>
-        </Card>
 
-        {/* Footer with legal links */}
-        <div className="text-center space-y-1">
-          <p className="text-xs text-gray-400">
-            Solvid.IA — Plateforme ESG sécurisée
-          </p>
-          <p className="text-xs text-gray-400">
-            <button
-              className="text-[#059669] hover:underline"
-              onClick={() => onNavigate?.('cgu')}
-            >
-              CGU
-            </button>
-            {' · '}
-            <button
-              className="text-[#059669] hover:underline"
-              onClick={() => onNavigate?.('politique-confidentialite')}
-            >
-              Politique de Confidentialité
-            </button>
-          </p>
+              <p className="text-sm text-center text-gray-500">
+                Déjà un compte ?{' '}
+                <button onClick={() => setView('login')} className="text-[#059669] font-medium hover:underline">Se connecter</button>
+              </p>
+            </>
+          )}
+
+          {/* ── SIGNUP STEP 2 ── */}
+          {view === 'signup' && signupStep === 2 && (
+            <>
+              <div>
+                <button onClick={() => setSignupStep(1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
+                  <ArrowLeft className="w-4 h-4" /> Retour
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Ton profil</h1>
+                <p className="text-sm text-gray-500 mt-1">Étape 2 sur 2 — Tes informations</p>
+                <div className="flex gap-1 mt-3">
+                  <div className="h-1 flex-1 rounded-full bg-[#059669]" />
+                  <div className="h-1 flex-1 rounded-full bg-[#059669]" />
+                </div>
+              </div>
+
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sName">Nom complet <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="sName" type="text" placeholder="Jean Dupont" className="pl-9"
+                      value={signupName} onChange={e => setSignupName(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="sOrg">Organisation</Label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="sOrg" type="text" placeholder="Ma Société SAS" className="pl-9"
+                      value={signupOrgName} onChange={e => setSignupOrgName(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Ton rôle</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'CLIENT_OWNER', label: 'Directeur ESG' },
+                      { value: 'CONSULTANT', label: 'Consultant ESG' },
+                      { value: 'CLIENT_CONTRIBUTOR', label: 'Analyste données' },
+                      { value: 'AUDITOR', label: 'Auditeur' },
+                    ].map(r => (
+                      <button
+                        key={r.value}
+                        type="button"
+                        onClick={() => setSignupRole(r.value)}
+                        className={`text-xs px-3 py-2 rounded-lg border-2 text-left transition-all ${
+                          signupRole === r.value
+                            ? 'border-[#059669] bg-emerald-50 text-[#059669] font-medium'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1 border-t border-gray-100">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <Checkbox id="cgu" checked={acceptCGU} onCheckedChange={v => setAcceptCGU(v === true)} className="mt-0.5" />
+                    <span className="text-xs text-gray-600 leading-relaxed">
+                      J'accepte les{' '}
+                      <button type="button" className="text-[#059669] underline" onClick={() => onNavigate?.('cgu')}>CGU</button>
+                      {' '}et la{' '}
+                      <button type="button" className="text-[#059669] underline" onClick={() => onNavigate?.('politique-confidentialite')}>Politique de confidentialité</button>
+                      <span className="text-red-500 ml-1">*</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <Checkbox id="ai" checked={acceptAI} onCheckedChange={v => setAcceptAI(v === true)} className="mt-0.5" />
+                    <span className="text-xs text-gray-500 leading-relaxed">
+                      J'accepte le traitement par IA (Anthropic Claude) pour générer des rapports <span className="text-gray-400">(optionnel)</span>
+                    </span>
+                  </label>
+                </div>
+
+                <Button type="submit" disabled={loading || !acceptCGU} className="w-full bg-[#059669] hover:bg-[#048558] h-11">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><span>Créer mon compte</span><ArrowRight className="w-4 h-4 ml-2" /></>}
+                </Button>
+              </form>
+            </>
+          )}
+
+          {/* ── SIGNUP CONFIRMATION ── */}
+          {view === 'signup-confirm' && (
+            <div className="text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-[#059669]" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Vérifie ta boîte mail</h1>
+                <p className="text-sm text-gray-500 mt-2">
+                  Un email de confirmation a été envoyé à<br />
+                  <strong className="text-gray-700">{signupEmail}</strong>
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2">
+                <p className="text-xs font-medium text-gray-700">Prochaines étapes :</p>
+                {[
+                  'Ouvre l\'email de Solvid.IA',
+                  'Clique sur le lien de confirmation',
+                  'Reviens ici pour te connecter',
+                ].map((step, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                    <div className="w-5 h-5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {i + 1}
+                    </div>
+                    {step}
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => setView('login')}>
+                Retour à la connexion
+              </Button>
+              <p className="text-xs text-gray-400">
+                Email non reçu ?{' '}
+                <button className="text-[#059669] hover:underline" onClick={handleSignup}>
+                  Renvoyer
+                </button>
+              </p>
+            </div>
+          )}
+
+          {/* ── RESET PASSWORD ── */}
+          {view === 'reset' && (
+            <>
+              <div>
+                <button onClick={() => setView('login')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
+                  <ArrowLeft className="w-4 h-4" /> Retour
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Mot de passe oublié</h1>
+                <p className="text-sm text-gray-500 mt-1">On t'envoie un lien de réinitialisation</p>
+              </div>
+
+              <form onSubmit={handleReset} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="resetEmail">Email du compte</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="resetEmail" type="email" placeholder="ton@email.com" className="pl-9"
+                      value={resetEmail} onChange={e => setResetEmail(e.target.value)} required autoFocus />
+                  </div>
+                </div>
+                <Button type="submit" disabled={loading} className="w-full bg-[#059669] hover:bg-[#048558] h-11">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Envoyer le lien'}
+                </Button>
+              </form>
+            </>
+          )}
+
+          {/* ── RESET SENT ── */}
+          {view === 'reset-sent' && (
+            <div className="text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
+                <Mail className="w-10 h-10 text-[#059669]" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Email envoyé !</h1>
+                <p className="text-sm text-gray-500 mt-2">
+                  Un lien de réinitialisation a été envoyé à<br />
+                  <strong className="text-gray-700">{resetEmail}</strong>
+                </p>
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => setView('login')}>
+                Retour à la connexion
+              </Button>
+            </div>
+          )}
+
+          {/* Legal footer */}
+          {(view === 'login' || view === 'signup') && (
+            <p className="text-xs text-center text-gray-400">
+              <button className="hover:underline text-gray-400" onClick={() => onNavigate?.('cgu')}>CGU</button>
+              {' · '}
+              <button className="hover:underline text-gray-400" onClick={() => onNavigate?.('politique-confidentialite')}>Confidentialité</button>
+            </p>
+          )}
         </div>
       </div>
     </div>
