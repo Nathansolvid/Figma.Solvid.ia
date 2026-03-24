@@ -9,7 +9,7 @@ import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import {
-  Shield, Loader2, Mail, Lock, User, Building2,
+  Loader2, Mail, Lock, User, Building2,
   ArrowRight, ArrowLeft, CheckCircle2, Eye, EyeOff,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -160,10 +160,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
       >
         <div>
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">Solvid<span className="text-emerald-300">.IA</span></span>
+            <span className="text-2xl font-bold tracking-tight">Solvid<span className="text-emerald-300">.IA</span></span>
           </div>
           <h2 className="text-3xl font-bold leading-tight mb-4">
             La plateforme ESG<br />Audit-Ready pour les PME
@@ -195,12 +192,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
 
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-2">
-            <div className="inline-flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#059669] rounded-lg flex items-center justify-center">
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-lg font-bold text-[#0A3B2E]">Solvid<span className="text-[#059669]">.IA</span></span>
-            </div>
+            <span className="text-xl font-bold text-[#0A3B2E]">Solvid<span className="text-[#059669]">.IA</span></span>
           </div>
 
           {/* ── LOGIN ── */}

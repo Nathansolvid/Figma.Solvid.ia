@@ -56,22 +56,27 @@ export function DossierProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { currentUser } = useUser();
 
-  // ── Charger depuis IDB au démarrage ──────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
+  // ── Charger depuis IDB (initial + après sync cloud) ──────────────────────
+  const loadFromIDB = useCallback(() => {
     idbGetDossiers().then(stored => {
-      if (cancelled) return;
-      // RGPD: filter by organization if user has one (backward compat: keep all if no org)
       const filtered = currentUser?.organizationId
         ? stored.filter(d => !d.organizationId || d.organizationId === currentUser.organizationId)
         : stored;
       setDossiers(filtered);
       setLoading(false);
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
+    }).catch(() => setLoading(false));
   }, [currentUser?.organizationId]);
+
+  useEffect(() => {
+    loadFromIDB();
+  }, [loadFromIDB]);
+
+  // Re-read IDB when cloud pull completes (new data pulled from Supabase)
+  useEffect(() => {
+    const handler = () => loadFromIDB();
+    window.addEventListener('solvid:cloud-pull-complete', handler);
+    return () => window.removeEventListener('solvid:cloud-pull-complete', handler);
+  }, [loadFromIDB]);
 
   // ── CRUD (memoized) ─────────────────────────────────────────────────────
   const createDossier = useCallback((data: Omit<Dossier, 'id' | 'createdAt' | 'status'>): string => {

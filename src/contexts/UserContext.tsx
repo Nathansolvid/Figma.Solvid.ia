@@ -6,6 +6,8 @@ import { packService } from '@/services/packService';
 import { collaborationService } from '@/services/collaborationService';
 import type { SubscriptionInfo } from '@/services/invitationService';
 import { supabase } from '@/lib/supabase';
+import { syncEngine } from '@/services/syncEngine';
+import { supabaseProvider } from '@/services/supabaseProvider';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface User {
@@ -16,8 +18,8 @@ export interface User {
   organizationId: string;
   organizationName?: string;
   avatar?: string;
-  consentCGU?: string;   // ISO timestamp of CGU consent
-  consentAI?: string;    // ISO timestamp of AI consent
+  consentCGU?: string;
+  consentAI?: string;
 }
 
 interface UserContextType {
@@ -33,12 +35,57 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+// ── Pull dossiers from Supabase into IDB (initial sync) ───────────────────────
+async function pullFromCloud(userId: string, orgId: string): Promise<void> {
+  try {
+    // Pull dossiers
+    const remoteDossiers = await supabaseProvider.listDossiers(orgId);
+    for (const d of remoteDossiers) {
+      const mapped = {
+        id: d.id,
+        name: (d as any).nom || (d as any).name || d.id,
+        clientOrg: (d as any).client_org || '',
+        providerOrg: (d as any).provider_org || '',
+        missionType: (d as any).mission_type || 'Conseil',
+        selectedWorkflows: (d as any).selected_workflows || [],
+        fiscalYear: (d as any).fiscal_year || '2025',
+        pathwayType: (d as any).pathway_type || 'ESG_Voluntary',
+        leadConsultant: (d as any).lead_consultant || '',
+        startDate: (d as any).start_date || d.created_at || new Date().toISOString(),
+        createdAt: d.created_at || new Date().toISOString(),
+        status: (d as any).status || 'active',
+        organizationId: orgId,
+        ownerId: userId,
+      };
+      await dataProvider.store.update('dossiers' as any, mapped).catch(async () => {
+        await dataProvider.store.create('dossiers' as any, mapped).catch(() => {});
+      });
+    }
+    // Signal DossierContext to refresh
+    if (remoteDossiers.length > 0) {
+      window.dispatchEvent(new CustomEvent('solvid:cloud-pull-complete'));
+    }
+  } catch (err) {
+    console.warn('[Sync] Cloud pull failed (offline?):', err);
+  }
+}
+
+// ── Activate sync engine for a logged-in user ─────────────────────────────────
+function activateSync(user: User): void {
+  syncEngine.enableSync(user.id, user.organizationId).then(() => {
+    // Pull remote data then flush any offline queue
+    pullFromCloud(user.id, user.organizationId).then(() => {
+      syncEngine.flushQueue().catch(() => {});
+    });
+  }).catch(() => {});
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
+  const [subscription] = useState<SubscriptionInfo | null>(null);
+  const [subscriptionExpired] = useState(false);
 
   useEffect(() => {
     const initApp = async () => {
@@ -65,6 +112,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           const user = mapSupabaseUser(session.user);
+          activateSync(user); // enable write-through + pull from cloud
           setCurrentUserState(user);
           collaborationService.initialize(user.id, user.name, user.organizationId);
         } else {
@@ -82,35 +130,32 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     initApp();
 
-    // Listen for Supabase auth state changes (login/logout from any tab)
-    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
+    // Listen for auth state changes (login/logout from any tab)
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session?.user && event === 'SIGNED_IN') {
           const user = mapSupabaseUser(session.user);
+          activateSync(user);
           setCurrentUserState(user);
           collaborationService.initialize(user.id, user.name, user.organizationId);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
+          syncEngine.disableSync();
           setCurrentUserState(null);
         }
       }
     );
 
-    return () => authSubscription.unsubscribe();
+    return () => authSub.unsubscribe();
   }, []);
 
   const setCurrentUser = useCallback((user: User | null) => {
     setCurrentUserState(user);
-    setSubscriptionExpired(false);
-
     if (user) {
       (window as any).__solvid_current_user_name = user.name;
       collaborationService.initialize(user.id, user.name);
-      const subCheck = invitationService.checkSubscription(user.id);
-      if (subCheck.info) {
-        setSubscription(subCheck.info);
-      }
+      activateSync(user);
     } else {
-      setSubscription(null);
+      syncEngine.disableSync();
     }
   }, []);
 
@@ -118,10 +163,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut();
     } finally {
+      syncEngine.disableSync();
       collaborationService.disconnect();
       setCurrentUser(null);
-      setSubscription(null);
-      setSubscriptionExpired(false);
     }
   }, [setCurrentUser]);
 
@@ -156,10 +200,9 @@ export function useUser() {
   return context;
 }
 
-// Map a Supabase Auth user to our internal User type
+// Map Supabase Auth user → internal User type
 function mapSupabaseUser(supabaseUser: SupabaseUser): User {
   const meta = supabaseUser.user_metadata || {};
-  const roleStr: string = meta.role || 'CLIENT_OWNER';
   const roleMap: Record<string, Role> = {
     ADMIN: Role.ADMIN,
     CONSULTANT: Role.CONSULTANT,
@@ -172,7 +215,7 @@ function mapSupabaseUser(supabaseUser: SupabaseUser): User {
     id: supabaseUser.id,
     name: meta.name || supabaseUser.email?.split('@')[0] || 'Utilisateur',
     email: supabaseUser.email || '',
-    role: roleMap[roleStr] ?? Role.CLIENT_OWNER,
+    role: roleMap[meta.role as string] ?? Role.CLIENT_OWNER,
     organizationId: meta.organizationId || supabaseUser.id,
     organizationName: meta.organizationName || 'Mon Organisation',
     consentCGU: meta.consentCGU,
