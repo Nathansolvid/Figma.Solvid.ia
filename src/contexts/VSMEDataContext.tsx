@@ -167,10 +167,10 @@ export function VSMEDataProvider({ children }: { children: ReactNode }) {
       statuts[item.code] = item.statut;
     }
     const key = cacheKey(dossierId, p);
-    setData(prev => ({
-      ...prev,
-      [key]: { values, statuts, loaded: true },
-    }));
+    setData(prev => {
+      if (prev[key]?.loaded) return prev; // Don't overwrite already-loaded/user-typed data
+      return { ...prev, [key]: { values, statuts, loaded: true } };
+    });
     // Charger aussi les périodes disponibles
     loadAvailablePeriods(dossierId);
   }, [activePeriods, loadAvailablePeriods]);

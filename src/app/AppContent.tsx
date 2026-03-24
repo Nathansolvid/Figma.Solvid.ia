@@ -142,8 +142,10 @@ function ProgressRing({ pct, color }: { pct: number; color: string }) {
 
 // ── Badge config for workflow referentials ───────────────────────────────────
 const WORKFLOW_BADGE: Record<string, { abbr: string; color: string }> = {
-  'vsme':                   { abbr: 'V',   color: '#2D9D5F' },
-  'bilan-carbone-complet':  { abbr: 'BC',  color: '#E07B39' },
+  'vsme-complet':           { abbr: 'V+',  color: '#2D9D5F' },
+  'vsme-base':              { abbr: 'VB',  color: '#2d7a55' },
+  'bilan-carbone':          { abbr: 'BC',  color: '#E07B39' },
+  'social-baseline':        { abbr: 'SB',  color: '#1a5f8a' },
   'diagnostic-energie':     { abbr: 'DE',  color: '#2980B9' },
   'gestion-dechets':        { abbr: 'GD',  color: '#6c3483' },
   'diagnostic-social':      { abbr: 'DS',  color: '#1a5f8a' },
@@ -183,7 +185,7 @@ export function AppContent() {
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
 
   // 🆕 Référentiels sidebar — état open/closed
-  const [openRefBlocks, setOpenRefBlocks] = useState<Set<string>>(new Set(['vsme']));
+  const [openRefBlocks, setOpenRefBlocks] = useState<Set<string>>(new Set(['vsme-base']));
   const toggleRefBlock = (id: string) => {
     setOpenRefBlocks(prev => {
       const next = new Set(prev);
@@ -214,7 +216,7 @@ export function AppContent() {
 
   // Reset sidebar UI state when dossier changes
   useEffect(() => {
-    setOpenRefBlocks(new Set(['vsme']));
+    setOpenRefBlocks(new Set(['vsme-base']));
     setActiveWorkflowId(null);
   }, [currentDossierId]);
 
@@ -474,7 +476,6 @@ export function AppContent() {
                     Créer un dossier
                   </button>
                 </div>
-                <div className="absolute right-8 top-1/2 -translate-y-1/2 opacity-10 text-[120px] font-bold">ESG</div>
               </div>
 
               {/* 3 value prop cards */}

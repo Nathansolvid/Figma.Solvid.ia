@@ -14,8 +14,10 @@ import { useWorkflowValidation } from "@/hooks/useWorkflowValidation";
 
 // ── Badge couleurs par workflow ─────────────────────────────────────────────
 const WORKFLOW_COLORS: Record<string, string> = {
-  'vsme': '#2D9D5F',
-  'bilan-carbone-complet': '#E07B39',
+  'vsme-complet': '#2D9D5F',
+  'vsme-base': '#2d7a55',
+  'bilan-carbone': '#E07B39',
+  'social-baseline': '#1a5f8a',
   'diagnostic-energie': '#2980B9',
   'gestion-dechets': '#6c3483',
   'diagnostic-social': '#1a5f8a',

@@ -1,22 +1,18 @@
 import { useState } from "react";
+// 4-step wizard: Informations → Mission → Parcours ESG → Confirmation
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import { 
-  ChevronRight,
-  ChevronLeft,
+import {
   CheckCircle2,
   AlertCircle,
-  FileCheck,
-  TrendingUp,
+  Activity,
+  ChevronLeft,
+  ChevronRight,
   Shield,
   Users,
-  Activity,
-  Leaf,
-  Scale,
-  Zap,
 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
 import {
@@ -32,73 +28,8 @@ import { Calendar, Plus, Trash2 } from "lucide-react";
 import { WORKFLOW_LIBRARY, WorkflowDefinition } from "@/utils/workflowLibrary";
 import { GlossaryTooltip } from "@/app/components/ui/GlossaryTooltip";
 
-type Step = 1 | 2 | 3 | 4 | 5;
-
-/** Secteurs d'activité pour le questionnaire d'onboarding */
-const SECTEURS = [
-  "Agriculture / Agroalimentaire",
-  "Industrie manufacturière",
-  "Construction / BTP",
-  "Commerce / Distribution",
-  "Transport / Logistique",
-  "Hébergement / Restauration",
-  "Information / Communication / Tech",
-  "Activités financières / Assurance",
-  "Activités immobilières",
-  "Services aux entreprises",
-  "Enseignement / Formation",
-  "Santé / Action sociale",
-  "Énergie / Utilities",
-  "Autre",
-];
-
-interface OnboardingAnswers {
-  nbCollaborateurs: string;
-  secteurActivite: string;
-  soumisCsrd: "oui" | "non" | "ne_sais_pas" | "";
-  experienceEsg: "jamais" | "partiellement" | "regulierement" | "";
-  objectifPrincipal: "audit" | "reporting_volontaire" | "questionnaire_client" | "";
-}
-
-/** Recommande les workflows selon les réponses du questionnaire */
-function getRecommendedWorkflows(answers: OnboardingAnswers): string[] {
-  const recommended: string[] = [];
-  const nbEmployees = parseInt(answers.nbCollaborateurs) || 0;
-
-  // CSRD obligatoire → workflows réglementaires
-  if (answers.soumisCsrd === "oui") {
-    recommended.push("bilan-carbone", "conformite-csrd", "reporting-social");
-  }
-
-  // PME ou ne sait pas → VSME de base
-  if (answers.soumisCsrd === "non" || answers.soumisCsrd === "ne_sais_pas" || nbEmployees < 250) {
-    recommended.push("bilan-carbone", "diagnostic-esg");
-  }
-
-  // Expérience existante → ajouter des workflows avancés
-  if (answers.experienceEsg === "regulierement") {
-    if (!recommended.includes("conformite-csrd")) recommended.push("conformite-csrd");
-    recommended.push("reporting-social");
-  }
-
-  // Objectif questionnaire client (EcoVadis)
-  if (answers.objectifPrincipal === "questionnaire_client") {
-    recommended.push("ecovadis-prep");
-    if (!recommended.includes("diagnostic-esg")) recommended.push("diagnostic-esg");
-  }
-
-  // Objectif audit
-  if (answers.objectifPrincipal === "audit") {
-    if (!recommended.includes("conformite-csrd")) recommended.push("conformite-csrd");
-  }
-
-  // Toujours au moins le bilan carbone
-  if (recommended.length === 0) {
-    recommended.push("bilan-carbone", "diagnostic-esg");
-  }
-
-  return [...new Set(recommended)];
-}
+// 4-step wizard: Informations → Mission → Parcours ESG → Confirmation
+type Step = 1 | 2 | 3 | 4;
 
 interface CreationDossierProps {
   onCancel: () => void;
@@ -132,41 +63,8 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
     customPeriods: [] as CustomPeriod[],
   });
 
-  // 🆕 Questionnaire d'onboarding (étape 3)
-  const [onboarding, setOnboarding] = useState<OnboardingAnswers>({
-    nbCollaborateurs: "",
-    secteurActivite: "",
-    soumisCsrd: "",
-    experienceEsg: "",
-    objectifPrincipal: "",
-  });
-
-  const [conflictError, setConflictError] = useState(false);
-
   const handleNext = () => {
-    // Validation étape 2 : vérifier conflit d'intérêts
-    if (currentStep === 2) {
-      const hasConflict = formData.providerOrg === "Cabinet ABC" && formData.missionType === "Audit";
-      if (hasConflict) {
-        setConflictError(true);
-        return;
-      }
-    }
-
-    // 🆕 Après le questionnaire (étape 3), pré-sélectionner les workflows recommandés
-    if (currentStep === 3) {
-      const recommended = getRecommendedWorkflows(onboarding);
-      // Pré-sélectionner uniquement si l'utilisateur n'a pas encore choisi
-      if (formData.selectedWorkflows.length === 0) {
-        setFormData(prev => ({ ...prev, selectedWorkflows: recommended }));
-      }
-      // Si soumis CSRD → mettre le pathway en obligatoire
-      if (onboarding.soumisCsrd === "oui") {
-        setFormData(prev => ({ ...prev, pathwayType: "CSRD_Mandatory" }));
-      }
-    }
-
-    if (currentStep < 5) {
+    if (currentStep < 4) {
       setCurrentStep((currentStep + 1) as Step);
     }
   };
@@ -174,7 +72,6 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep((currentStep - 1) as Step);
-      setConflictError(false);
     }
   };
 
@@ -217,12 +114,12 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
         </Button>
       </div>
 
-      {/* Stepper amélioré avec indicateurs visuels (5 étapes) */}
+      {/* Stepper — 4 étapes */}
       <div className="flex items-center justify-center gap-0">
-        {[1, 2, 3, 4, 5].map((step) => {
+        {[1, 2, 3, 4].map((step) => {
           const isCompleted = currentStep > step;
           const isActive = currentStep === step;
-          const stepLabels = ["Informations", "Mission", "Profil ESG", "Parcours ESG", "Confirmation"];
+          const stepLabels = ["Informations", "Mission", "Parcours ESG", "Confirmation"];
 
           return (
             <div key={step} className="flex items-center">
@@ -255,7 +152,7 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
                   {stepLabels[step - 1]}
                 </span>
               </div>
-              {step < 5 && (
+              {step < 4 && (
                 <div className={`w-12 h-0.5 mx-1.5 mt-[-18px] transition-colors duration-300 ${
                   currentStep > step ? 'bg-[#059669]' : 'bg-gray-200'
                 }`} />
@@ -284,19 +181,12 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
 
             <div className="space-y-2">
               <Label htmlFor="clientOrg">Organisation cliente *</Label>
-              <Select 
+              <Input
+                id="clientOrg"
+                placeholder="Ex: Acme SAS, Martin & Associés..."
                 value={formData.clientOrg}
-                onValueChange={(value) => setFormData({ ...formData, clientOrg: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une organisation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Entreprise Example SAS">Entreprise Example SAS</SelectItem>
-                  <SelectItem value="Tech Innovate SARL">Tech Innovate SARL</SelectItem>
-                  <SelectItem value="Green Energy Corp">Green Energy Corp</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({ ...formData, clientOrg: e.target.value })}
+              />
             </div>
 
             <div className="space-y-2">
@@ -324,7 +214,6 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
                 value={formData.missionType}
                 onValueChange={(value: "Conseil" | "Audit") => {
                   setFormData({ ...formData, missionType: value });
-                  setConflictError(false);
                 }}
               >
                 <Card className={`cursor-pointer transition-all ${
@@ -498,60 +387,24 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
             <CardTitle>Configuration de la mission</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {conflictError && (
-              <Card className="border-red-200 bg-red-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold text-red-900">Conflit d'intérêts détecté</p>
-                      <p className="text-sm text-red-700 mt-1">
-                        Impossible de créer cette mission. L'organisation "Cabinet ABC" a déjà une 
-                        mission Conseil active sur ce dossier. Une même organisation ne peut pas être 
-                        à la fois conseil et audit sur le même dossier (règle CSRD).
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <div className="space-y-2">
-              <Label htmlFor="providerOrg">Organisation prestataire *</Label>
-              <Select 
+              <Label htmlFor="providerOrg">Organisation prestataire</Label>
+              <Input
+                id="providerOrg"
+                placeholder="Ex: Solvid, Cabinet conseil..."
                 value={formData.providerOrg}
-                onValueChange={(value) => {
-                  setFormData({ ...formData, providerOrg: value });
-                  setConflictError(false);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une organisation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Interne">Interne</SelectItem>
-                  <SelectItem value="Cabinet ABC">Cabinet ABC (Conseil)</SelectItem>
-                  <SelectItem value="Audit Partners">Audit Partners (Audit)</SelectItem>
-                  <SelectItem value="ESG Consulting">ESG Consulting (Conseil)</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({ ...formData, providerOrg: e.target.value })}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="leadConsultant">Responsable de mission *</Label>
-              <Select 
+              <Label htmlFor="leadConsultant">Responsable de mission</Label>
+              <Input
+                id="leadConsultant"
+                placeholder="Ex: Antoine Brun"
                 value={formData.leadConsultant}
-                onValueChange={(value) => setFormData({ ...formData, leadConsultant: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un responsable" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sophie">Sophie Martin (Consultant)</SelectItem>
-                  <SelectItem value="thomas">Thomas Dubois (Consultant)</SelectItem>
-                  <SelectItem value="marie">Marie Laurent (Auditeur)</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({ ...formData, leadConsultant: e.target.value })}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -578,160 +431,8 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
         </Card>
       )}
 
-      {/* Étape 3: Questionnaire d'onboarding */}
+      {/* Étape 3: Parcours ESG */}
       {currentStep === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Profil ESG de votre entreprise</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Répondez à ces questions pour que nous puissions vous recommander les référentiels les plus adaptés.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Q1: Nombre de collaborateurs */}
-            <div className="space-y-2">
-              <Label htmlFor="nbCollaborateurs" className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-[#059669]" />
-                1. Nombre de collaborateurs (ETP)
-              </Label>
-              <Input
-                id="nbCollaborateurs"
-                type="number"
-                placeholder="Ex: 50"
-                value={onboarding.nbCollaborateurs}
-                onChange={(e) => setOnboarding({ ...onboarding, nbCollaborateurs: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                {parseInt(onboarding.nbCollaborateurs) >= 250
-                  ? "→ Grande entreprise : référentiels CSRD/ESRS probablement applicables"
-                  : parseInt(onboarding.nbCollaborateurs) > 0
-                  ? "→ PME : le standard VSME simplifié est recommandé"
-                  : ""}
-              </p>
-            </div>
-
-            {/* Q2: Secteur d'activité */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[#059669]" />
-                2. Secteur d'activité
-              </Label>
-              <Select
-                value={onboarding.secteurActivite}
-                onValueChange={(value) => setOnboarding({ ...onboarding, secteurActivite: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner votre secteur" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SECTEURS.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Q3: Soumis à la CSRD ? */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-[#059669]" />
-                3. Êtes-vous soumis à la CSRD ?
-              </Label>
-              <RadioGroup
-                value={onboarding.soumisCsrd}
-                onValueChange={(v) => setOnboarding({ ...onboarding, soumisCsrd: v as OnboardingAnswers["soumisCsrd"] })}
-                className="flex flex-wrap gap-3"
-              >
-                {[
-                  { value: "oui", label: "Oui" },
-                  { value: "non", label: "Non" },
-                  { value: "ne_sais_pas", label: "Je ne sais pas" },
-                ].map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-center gap-2 border rounded-lg px-4 py-2.5 cursor-pointer transition-all ${
-                      onboarding.soumisCsrd === opt.value
-                        ? "border-[#059669] bg-[#E8F3F0] border-2"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <RadioGroupItem value={opt.value} />
-                    <span className="text-sm font-medium">{opt.label}</span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-
-            {/* Q4: Expérience ESG */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-[#059669]" />
-                4. Avez-vous déjà fait du reporting ESG ?
-              </Label>
-              <RadioGroup
-                value={onboarding.experienceEsg}
-                onValueChange={(v) => setOnboarding({ ...onboarding, experienceEsg: v as OnboardingAnswers["experienceEsg"] })}
-                className="flex flex-wrap gap-3"
-              >
-                {[
-                  { value: "jamais", label: "Jamais" },
-                  { value: "partiellement", label: "Partiellement" },
-                  { value: "regulierement", label: "Oui, régulièrement" },
-                ].map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-center gap-2 border rounded-lg px-4 py-2.5 cursor-pointer transition-all ${
-                      onboarding.experienceEsg === opt.value
-                        ? "border-[#059669] bg-[#E8F3F0] border-2"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <RadioGroupItem value={opt.value} />
-                    <span className="text-sm font-medium">{opt.label}</span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-
-            {/* Q5: Objectif principal */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-[#059669]" />
-                5. Quel est votre objectif principal ?
-              </Label>
-              <RadioGroup
-                value={onboarding.objectifPrincipal}
-                onValueChange={(v) => setOnboarding({ ...onboarding, objectifPrincipal: v as OnboardingAnswers["objectifPrincipal"] })}
-                className="space-y-2"
-              >
-                {[
-                  { value: "audit", label: "Audit & conformité réglementaire", desc: "CSRD, ESRS, vérification par un tiers" },
-                  { value: "reporting_volontaire", label: "Reporting ESG volontaire", desc: "Bilan carbone, rapport RSE, communication" },
-                  { value: "questionnaire_client", label: "Réponse à un questionnaire client", desc: "EcoVadis, CDP, demande investisseur" },
-                ].map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-start gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-all ${
-                      onboarding.objectifPrincipal === opt.value
-                        ? "border-[#059669] bg-[#E8F3F0] border-2"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <RadioGroupItem value={opt.value} className="mt-0.5" />
-                    <div>
-                      <span className="text-sm font-medium">{opt.label}</span>
-                      <p className="text-xs text-muted-foreground">{opt.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Étape 4: Workflows */}
-      {currentStep === 4 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-1">
@@ -742,25 +443,6 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* 🆕 Recommandation basée sur le questionnaire */}
-            {formData.selectedWorkflows.length > 0 && onboarding.objectifPrincipal && (
-              <Card className="border-[#059669] bg-[#E8F3F0]">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-2">
-                    <Zap className="h-4 w-4 text-[#059669] mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-[#0A3B2E]">
-                        Parcours recommandés selon votre profil
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Nous avons pré-sélectionné {formData.selectedWorkflows.length} parcours basés sur vos réponses.
-                        Vous pouvez les modifier librement.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -848,8 +530,8 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
         </Card>
       )}
 
-      {/* Étape 5: Confirmation */}
-      {currentStep === 5 && (
+      {/* Étape 4: Confirmation */}
+      {currentStep === 4 && (
         <Card>
           <CardHeader>
             <CardTitle>Récapitulatif</CardTitle>
@@ -958,7 +640,7 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
           Précédent
         </Button>
 
-        {currentStep < 5 ? (
+        {currentStep < 4 ? (
           <Button
             className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
             onClick={handleNext}

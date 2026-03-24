@@ -49,14 +49,62 @@ export interface WorkflowDefinition {
 
 export const WORKFLOW_LIBRARY: WorkflowDefinition[] = [
   // ═══════════════════════════════════════════════════════════════════════════
-  // 1. VSME — Rapport de durabilité
+  // 1a. VSME Complet (B + C) — 79 datapoints
   // ═══════════════════════════════════════════════════════════════════════════
   {
-    id: 'vsme',
-    name: 'VSME — Rapport de durabilité',
+    id: 'vsme-complet',
+    name: 'VSME Complet (B + C)',
     category: 'Réglementaire',
-    description: 'Référentiel EFRAG 2024 pour PME non cotées — 47 données E/S/G',
+    description: 'Modules B (Base) + C (Narratif) pour une conformité totale EFRAG — 79 datapoints E/S/G',
     icon: '🌿',
+    difficulty: 'Avancé',
+    estimatedDuration: '20-35 heures',
+    templatesRequired: ['vsme-environnement', 'vsme-social', 'vsme-gouvernance', 'vsme-narratif'],
+    templatesOptional: ['vsme-general'],
+    indicators: ['B1','B2','B3','B4','B5','B6','B7','B8','B9','B10','B11','C1','C2','C3','C4'],
+    requiredEvidence: [
+      {
+        id: 'bilan-social-dsn-c',
+        label: 'Bilan social / DSN annuelle',
+        description: 'Bilan social, DSN annuelle ou extrait DADS justifiant le nombre d\'employés',
+        category: 'S',
+        linkedIndicators: ['B1.1'],
+        fileTypes: ['pdf', 'excel'],
+        mandatory: true,
+      },
+      {
+        id: 'liasse-fiscale-c',
+        label: 'Liasse fiscale ou bilan comptable',
+        description: 'Liasse fiscale ou bilan comptable signé par le CAC (chiffre d\'affaires)',
+        category: 'G',
+        linkedIndicators: ['B1.2', 'B1.3'],
+        fileTypes: ['pdf'],
+        mandatory: true,
+      },
+      {
+        id: 'rapport-narratif-c',
+        label: 'Rapport narratif ESG (Module C)',
+        description: 'Déclaration de durabilité narrative : politiques, objectifs, gouvernance ESG',
+        category: 'G',
+        linkedIndicators: ['C1.1', 'C2.1', 'C3.1'],
+        fileTypes: ['pdf', 'word'],
+        mandatory: true,
+      },
+    ],
+    regulatory: true,
+    audience: ['PME', 'ETI'],
+    tags: ['VSME', 'EFRAG', 'Durabilité', 'ESG', 'Module C'],
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 1b. VSME Base (Module B) — 47 datapoints
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'vsme-base',
+    name: 'VSME Base (Module B)',
+    category: 'Réglementaire',
+    description: 'L\'essentiel pour démarrer. Indicateurs B1–B11, 47 datapoints E/S/G',
+    icon: '🌱',
     difficulty: 'Intermédiaire',
     estimatedDuration: '10-20 heures',
     templatesRequired: ['vsme-environnement', 'vsme-social', 'vsme-gouvernance'],
@@ -213,13 +261,13 @@ export const WORKFLOW_LIBRARY: WorkflowDefinition[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 2. Bilan Carbone® Complet
+  // 2. Bilan Carbone® ADEME (BEGES)
   // ═══════════════════════════════════════════════════════════════════════════
   {
-    id: 'bilan-carbone-complet',
-    name: 'Bilan Carbone® Complet',
+    id: 'bilan-carbone',
+    name: 'Bilan Carbone® ADEME',
     category: 'Environnement',
-    description: 'Calcul exhaustif des émissions carbone : directes, électricité et chaîne de valeur',
+    description: 'Calcul d\'empreinte carbone scope 1, 2 et 3 selon méthode ADEME — BEGES réglementaire',
     icon: '🌍',
     difficulty: 'Avancé',
     estimatedDuration: '15-25 heures',
@@ -284,7 +332,55 @@ export const WORKFLOW_LIBRARY: WorkflowDefinition[] = [
     ],
     regulatory: false,
     audience: ['PME', 'ETI', 'Grande Entreprise'],
-    tags: ['GES', 'Climat', 'Carbone'],
+    tags: ['GES', 'Climat', 'Carbone', 'ADEME', 'BEGES'],
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 2b. Social Baseline — 25 datapoints
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: 'social-baseline',
+    name: 'Social Baseline',
+    category: 'Social',
+    description: 'Indicateurs sociaux clés : effectifs, égalité professionnelle, formation — 25 datapoints',
+    icon: '👥',
+    difficulty: 'Débutant',
+    estimatedDuration: '4-8 heures',
+    templatesRequired: ['effectifs', 'egalite-pro', 'formation'],
+    templatesOptional: ['sante-securite'],
+    indicators: ['B8','B9','B10'],
+    requiredEvidence: [
+      {
+        id: 'dsn-sb',
+        label: 'DSN / Bilan social',
+        description: 'Déclaration Sociale Nominative ou bilan social annuel',
+        category: 'S',
+        linkedIndicators: ['B8.1', 'B8.2'],
+        fileTypes: ['pdf', 'excel'],
+        mandatory: true,
+      },
+      {
+        id: 'index-egalite-sb',
+        label: 'Index égalité professionnelle',
+        description: 'Index égalité professionnelle H/F (obligatoire ≥ 50 salariés)',
+        category: 'S',
+        linkedIndicators: ['B8.3'],
+        fileTypes: ['pdf'],
+        mandatory: true,
+      },
+      {
+        id: 'plan-formation-sb',
+        label: 'Plan de formation annuel',
+        description: 'Plan de développement des compétences et heures de formation',
+        category: 'S',
+        linkedIndicators: ['B9.1'],
+        fileTypes: ['pdf', 'excel'],
+        mandatory: true,
+      },
+    ],
+    regulatory: false,
+    audience: ['PME', 'ETI'],
+    tags: ['Social', 'RH', 'Égalité', 'Formation'],
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
