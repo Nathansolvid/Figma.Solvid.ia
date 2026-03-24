@@ -1,10 +1,12 @@
+// Auth via Supabase — server-side credentials, no localStorage passwords
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { Role } from '@/permissions';
-import { authService } from '@/services/authService';
 import { dataProvider } from '@/services/dataProvider';
 import { packService } from '@/services/packService';
 import { collaborationService } from '@/services/collaborationService';
-import { invitationService, SubscriptionInfo } from '@/services/invitationService';
+import type { SubscriptionInfo } from '@/services/invitationService';
+import { supabase } from '@/lib/supabase';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface User {
   id: string;
@@ -43,11 +45,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       try {
         await dataProvider.init();
         await packService.seedTemplates();
-        await authService.seedAdminIfNeeded();
 
         // ── DEMO MODE ONLY ──────────────────────────────────────────────
         if (import.meta.env.VITE_DEMO_MODE === 'true') {
-          // DEMO MODE ONLY — hardcoded dev user for local testing
           const devUser: User = {
             id: 'dev-admin-001',
             name: 'Nathan Glatt',
@@ -61,35 +61,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // ── Real auth session check ─────────────────────────────────────
-        const session = authService.getSession();
-        if (session) {
-          try {
-            const user = await dataProvider.store.read('users', session.userId);
-            if (user) {
-              const org = await dataProvider.store.read('organizations', user.organizationId);
-              const authenticatedUser: User = {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: mapRoleStringToEnum(user.role),
-                organizationId: user.organizationId,
-                organizationName: org?.name,
-                avatar: user.avatar,
-                consentCGU: user.consentCGU,
-                consentAI: user.consentAI,
-              };
-              setCurrentUserState(authenticatedUser);
-              collaborationService.initialize(authenticatedUser.id, authenticatedUser.name, authenticatedUser.organizationId);
-              return;
-            }
-          } catch (e) {
-            console.warn('[UserContext] Failed to load session user:', e);
-          }
+        // ── Supabase session check ──────────────────────────────────────
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const user = mapSupabaseUser(session.user);
+          setCurrentUserState(user);
+          collaborationService.initialize(user.id, user.name, user.organizationId);
+        } else {
+          setCurrentUserState(null);
         }
-
-        // No valid session → will show login page
-        setCurrentUserState(null);
       } catch (error) {
         console.error('Initialization error:', error);
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -101,6 +81,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
 
     initApp();
+
+    // Listen for Supabase auth state changes (login/logout from any tab)
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          const user = mapSupabaseUser(session.user);
+          setCurrentUserState(user);
+          collaborationService.initialize(user.id, user.name, user.organizationId);
+        } else {
+          setCurrentUserState(null);
+        }
+      }
+    );
+
+    return () => authSubscription.unsubscribe();
   }, []);
 
   const setCurrentUser = useCallback((user: User | null) => {
@@ -121,15 +116,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await authService.logout();
+      await supabase.auth.signOut();
+    } finally {
       collaborationService.disconnect();
       setCurrentUser(null);
       setSubscription(null);
       setSubscriptionExpired(false);
-    } catch {
-      collaborationService.disconnect();
-      setCurrentUser(null);
-      setSubscription(null);
     }
   }, [setCurrentUser]);
 
@@ -164,21 +156,26 @@ export function useUser() {
   return context;
 }
 
-// Helper to map role strings from API to Role enum
-function mapRoleStringToEnum(roleString: string): Role {
-  const mapping: Record<string, Role> = {
-    'Directeur ESG': Role.CLIENT_OWNER,
-    'Consultant ESG': Role.CONSULTANT,
-    'Auditeur externe': Role.AUDITOR,
-    'Analyste données': Role.CLIENT_CONTRIBUTOR,
-    'Contrôleur interne': Role.CLIENT_CONTRIBUTOR,
-    'Admin': Role.ADMIN,
-    'CLIENT_OWNER': Role.CLIENT_OWNER,
-    'CONSULTANT': Role.CONSULTANT,
-    'AUDITOR': Role.AUDITOR,
-    'CLIENT_CONTRIBUTOR': Role.CLIENT_CONTRIBUTOR,
-    'ADMIN': Role.ADMIN,
-    'VIEWER': Role.VIEWER,
+// Map a Supabase Auth user to our internal User type
+function mapSupabaseUser(supabaseUser: SupabaseUser): User {
+  const meta = supabaseUser.user_metadata || {};
+  const roleStr: string = meta.role || 'CLIENT_OWNER';
+  const roleMap: Record<string, Role> = {
+    ADMIN: Role.ADMIN,
+    CONSULTANT: Role.CONSULTANT,
+    CLIENT_OWNER: Role.CLIENT_OWNER,
+    CLIENT_CONTRIBUTOR: Role.CLIENT_CONTRIBUTOR,
+    AUDITOR: Role.AUDITOR,
+    VIEWER: Role.VIEWER,
   };
-  return mapping[roleString] || Role.VIEWER;
+  return {
+    id: supabaseUser.id,
+    name: meta.name || supabaseUser.email?.split('@')[0] || 'Utilisateur',
+    email: supabaseUser.email || '',
+    role: roleMap[roleStr] ?? Role.CLIENT_OWNER,
+    organizationId: meta.organizationId || supabaseUser.id,
+    organizationName: meta.organizationName || 'Mon Organisation',
+    consentCGU: meta.consentCGU,
+    consentAI: meta.consentAI,
+  };
 }

@@ -14,7 +14,7 @@ import { Card, CardContent, CardFooter } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Shield, Loader2, User, Building2, Mail, Lock } from 'lucide-react';
-import { authService } from '@/services/authService';
+import { supabase } from '@/lib/supabase';
 import { User as UserType } from '@/contexts/UserContext';
 import { Role } from '@/permissions';
 import { toast } from 'sonner';
@@ -50,26 +50,22 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const [resetTempPassword, setResetTempPassword] = useState('');
 
   /**
-   * Password Reset — generates a temporary password
+   * Password Reset — sends a reset email via Supabase
    */
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail.trim()) return;
     setResetLoading(true);
     try {
-      // Generate a temporary password
-      const tempPwd = `Temp_${Math.random().toString(36).slice(2, 10)}!`;
-      // Update the credential in localStorage
-      const result = await authService.resetPassword(resetEmail.toLowerCase().trim(), tempPwd);
-      if (result) {
-        setResetTempPassword(tempPwd);
-        setResetSuccess(true);
-        toast.success("Mot de passe réinitialisé");
-      } else {
-        toast.error("Aucun compte trouvé avec cet email");
-      }
-    } catch (err) {
-      toast.error("Erreur lors de la réinitialisation");
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        resetEmail.toLowerCase().trim(),
+        { redirectTo: `${window.location.origin}` }
+      );
+      if (error) throw error;
+      setResetSuccess(true);
+      toast.success("Email envoyé !");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur lors de la réinitialisation");
     } finally {
       setResetLoading(false);
     }
@@ -89,40 +85,37 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     setLoading(true);
 
     try {
-      const result = await authService.login({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
 
-      // Check subscription validity
-      const subCheck = await authService.checkSubscriptionValid(result.user.id);
-      if (!subCheck.valid) {
-        await authService.logout();
-        toast.error('Accès expiré', {
-          description: subCheck.reason || 'Votre abonnement a expiré. Contactez votre administrateur.',
-          duration: 6000,
-        });
-        setLoading(false);
-        return;
-      }
+      if (error) throw error;
+      if (!data.user) throw new Error('Utilisateur introuvable');
 
+      const meta = data.user.user_metadata || {};
+      const roleMap: Record<string, Role> = {
+        ADMIN: Role.ADMIN, CONSULTANT: Role.CONSULTANT, CLIENT_OWNER: Role.CLIENT_OWNER,
+        CLIENT_CONTRIBUTOR: Role.CLIENT_CONTRIBUTOR, AUDITOR: Role.AUDITOR, VIEWER: Role.VIEWER,
+      };
       const mappedUser: UserType = {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        role: mapRole(result.user.role),
-        organizationId: result.user.organizationId,
-        organizationName: result.organization.name,
+        id: data.user.id,
+        name: meta.name || data.user.email?.split('@')[0] || 'Utilisateur',
+        email: data.user.email || '',
+        role: roleMap[meta.role] ?? Role.CLIENT_OWNER,
+        organizationId: meta.organizationId || data.user.id,
+        organizationName: meta.organizationName || 'Mon Organisation',
+        consentCGU: meta.consentCGU,
+        consentAI: meta.consentAI,
       };
 
       onLogin(mappedUser);
-      toast.success('Connexion réussie !', {
-        description: `Bienvenue ${result.user.name}`,
-      });
+      toast.success('Connexion réussie !', { description: `Bienvenue ${mappedUser.name}` });
     } catch (error: any) {
-      console.error('Login error:', error);
       toast.error('Erreur de connexion', {
-        description: error?.message || 'Vérifiez vos identifiants',
+        description: error?.message === 'Invalid login credentials'
+          ? 'Email ou mot de passe incorrect'
+          : error?.message || 'Vérifiez vos identifiants',
       });
     } finally {
       setLoading(false);
@@ -148,51 +141,37 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     setLoading(true);
 
     try {
-      await authService.signup({
+      const { error } = await supabase.auth.signUp({
         email: signupEmail,
-        name: signupName,
         password: signupPassword,
-        organizationName: signupOrgName,
-        role: signupRole,
-        consentCGU: new Date().toISOString(),
-        consentAI: acceptAI ? new Date().toISOString() : null,
+        options: {
+          data: {
+            name: signupName,
+            role: signupRole,
+            organizationId: crypto.randomUUID(),
+            organizationName: signupOrgName || 'Mon Organisation',
+            consentCGU: new Date().toISOString(),
+            consentAI: acceptAI ? new Date().toISOString() : null,
+          },
+        },
       });
+
+      if (error) throw error;
+
+      toast.success('Demande envoyée !', {
+        description: 'Vérifiez votre email pour confirmer votre compte.',
+        duration: 8000,
+      });
+      setSignupEmail(''); setSignupName(''); setSignupPassword('');
+      setSignupOrgName(''); setSignupRole('CLIENT_OWNER');
+      setAcceptCGU(false); setAcceptAI(false);
     } catch (error: any) {
-      // Compte créé mais en attente de validation admin
-      if (error?.message === 'PENDING_APPROVAL') {
-        toast.success('Demande envoyée !', {
-          description: 'Votre compte a été créé. Un administrateur doit valider votre accès avant que vous puissiez vous connecter.',
-          duration: 8000,
-        });
-        // Reset form
-        setSignupEmail('');
-        setSignupName('');
-        setSignupPassword('');
-        setSignupOrgName('');
-        setSignupRole('CLIENT_OWNER');
-        setAcceptCGU(false);
-        setAcceptAI(false);
-        return;
-      }
-      console.error('Signup error:', error);
       toast.error('Erreur lors de la création du compte', {
         description: error?.message || 'Une erreur est survenue',
       });
     } finally {
       setLoading(false);
     }
-  };
-
-  const mapRole = (role: string): Role => {
-    const mapping: Record<string, Role> = {
-      CLIENT_OWNER: Role.CLIENT_OWNER,
-      CONSULTANT: Role.CONSULTANT,
-      AUDITOR: Role.AUDITOR,
-      CLIENT_CONTRIBUTOR: Role.CLIENT_CONTRIBUTOR,
-      ADMIN: Role.ADMIN,
-      VIEWER: Role.VIEWER,
-    };
-    return mapping[role] || Role.VIEWER;
   };
 
   // ---- Main Auth View ----
@@ -236,17 +215,14 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
             ) : (
               <div className="space-y-4">
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
-                  <p className="text-sm text-emerald-800 font-medium mb-2">Nouveau mot de passe temporaire :</p>
-                  <code className="bg-white px-4 py-2 rounded-lg text-lg font-mono font-bold text-emerald-900 border block">
-                    {resetTempPassword}
-                  </code>
-                  <p className="text-xs text-emerald-600 mt-2">
-                    Copiez ce mot de passe et connectez-vous. Changez-le ensuite dans les Réglages.
+                  <p className="text-sm text-emerald-800 font-medium mb-2">Email envoyé !</p>
+                  <p className="text-xs text-emerald-600">
+                    Un lien de réinitialisation a été envoyé à <strong>{resetEmail}</strong>. Vérifiez votre boîte mail.
                   </p>
                 </div>
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => { setShowResetForm(false); setLoginEmail(resetEmail); setLoginPassword(''); }}
+                  onClick={() => { setShowResetForm(false); setLoginEmail(resetEmail); }}
                 >
                   Retour à la connexion
                 </Button>
