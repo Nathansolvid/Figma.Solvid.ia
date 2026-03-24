@@ -20,7 +20,7 @@ function App() {
               </VSMEDataProvider>
             </DossierDataProvider>
           </DossierProvider>
-          <Toaster />
+          <Toaster position="top-right" />
         </UserProvider>
       </QueryClientProvider>
     </ErrorBoundary>

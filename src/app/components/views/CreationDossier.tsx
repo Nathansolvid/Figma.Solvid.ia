@@ -935,8 +935,21 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
       )}
 
       {/* Actions */}
+      <div className="space-y-2">
+        {currentStep === 1 && (!formData.name || !formData.clientOrg) && (
+          <p className="text-sm text-amber-600 flex items-center gap-1.5 justify-end">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            Renseignez le nom du dossier et l'organisation cliente pour continuer.
+          </p>
+        )}
+        {currentStep === 2 && (!formData.providerOrg || !formData.leadConsultant || !formData.startDate) && (
+          <p className="text-sm text-amber-600 flex items-center gap-1.5 justify-end">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            Renseignez le cabinet, le consultant et la date de début pour continuer.
+          </p>
+        )}
       <div className="flex justify-between">
-        <Button 
+        <Button
           variant="outline"
           onClick={handleBack}
           disabled={currentStep === 1}
@@ -944,7 +957,7 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
           <ChevronLeft className="h-4 w-4 mr-2" />
           Précédent
         </Button>
-        
+
         {currentStep < 5 ? (
           <Button
             className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
@@ -966,6 +979,7 @@ export function CreationDossier({ onCancel, onComplete }: CreationDossierProps) 
             Créer le dossier
           </Button>
         )}
+      </div>
       </div>
     </div>
   );

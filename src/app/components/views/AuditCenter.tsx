@@ -244,11 +244,23 @@ export function AuditCenter({ currentAuditorId, currentAuditorName }: AuditCente
           
           {filteredPacks.length === 0 ? (
             <Card className="p-12 text-center">
-              <CheckCircle2 className="size-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun pack en attente</h3>
-              <p className="text-gray-600">
-                Tous les packs ont été traités. Excellent travail !
-              </p>
+              {packsInQueue.length === 0 ? (
+                <>
+                  <CheckCircle2 className="size-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun dossier en attente</h3>
+                  <p className="text-gray-600">
+                    Les dossiers soumis pour contrôle qualité apparaîtront ici.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-12 text-green-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun résultat</h3>
+                  <p className="text-gray-600">
+                    Essayez de modifier vos critères de recherche.
+                  </p>
+                </>
+              )}
             </Card>
           ) : (
             filteredPacks.map(pack => (

@@ -3,7 +3,7 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/app/components/ui/utils";
-import { Upload, Plus, Star } from "lucide-react";
+import { Upload, Star } from "lucide-react";
 
 interface VSMEFrameworksProps {
   onNavigate: (view: string) => void;
@@ -83,14 +83,6 @@ export function VSMEFrameworks({ onNavigate, onOpenReferentiel }: VSMEFrameworks
           >
             <Upload className="w-4 h-4" />
             Importer données
-          </Button>
-          <Button
-            className="gap-2 text-white"
-            style={{ background: '#1a5f3f' }}
-            onClick={() => onNavigate("creation-dossier")}
-          >
-            <Plus className="w-4 h-4" />
-            Nouveau dossier
           </Button>
         </div>
       </div>

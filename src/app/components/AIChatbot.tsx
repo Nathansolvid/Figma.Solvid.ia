@@ -258,7 +258,7 @@ export function AIChatbot({ context }: AIChatbotProps) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-lg transition-all duration-300",
+          "fixed bottom-20 right-6 z-50 w-14 h-14 rounded-full shadow-lg transition-all duration-300",
           "flex items-center justify-center",
           "hover:scale-110 active:scale-95",
           isOpen
@@ -279,7 +279,7 @@ export function AIChatbot({ context }: AIChatbotProps) {
 
       {/* Notification badge si fermé et messages non lus */}
       {!isOpen && messages.length > 0 && (
-        <span className="fixed bottom-[72px] right-6 z-50 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center pointer-events-none">
+        <span className="fixed bottom-[138px] right-6 z-50 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center pointer-events-none">
           {messages.filter(m => m.role === "assistant").length}
         </span>
       )}

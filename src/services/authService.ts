@@ -199,7 +199,7 @@ class AuthService {
 
     // ── Admin accounts to seed ───────────────────────────────────────────
     const ADMIN_ACCOUNTS = [
-      { email: import.meta.env.VITE_ADMIN_EMAIL, password: import.meta.env.VITE_ADMIN_PASSWORD, name: 'Nathan Glatt' },
+      { email: import.meta.env.VITE_ADMIN_EMAIL || 'nathan.glatt@icloud.com', password: import.meta.env.VITE_ADMIN_PASSWORD || 'Solvid2026!', name: 'Nathan Glatt' },
       { email: 'clement@nazar-seo.eu', password: 'Solvid2026!', name: 'Clément Nazar' },
       { email: 'antoine.brun.pro1@gmail.com', password: 'Solvid2026!', name: 'Antoine Brun' },
     ].filter(a => a.email && a.password);

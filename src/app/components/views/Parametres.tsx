@@ -224,7 +224,7 @@ export function Parametres() {
       a.download = `solvid-ia-export-${user.currentUser.email}-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Export termine", { description: "Vos donnees ont ete telechargees" });
+      toast.success("Export terminé", { description: "Vos données ont été téléchargées" });
     } catch (error) {
       toast.error("Erreur d'export", { description: String(error) });
     }
@@ -1153,9 +1153,9 @@ export function Parametres() {
           </div>
           <div className="flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg">
             <div>
-              <p className="font-medium mb-1 text-red-900">Supprimer toutes les donnees</p>
+              <p className="font-medium mb-1 text-red-900">Supprimer toutes les données</p>
               <p className="text-sm text-red-700">
-                Action irreversible - toutes vos donnees seront definitivement supprimees
+                Action irréversible — toutes vos données seront définitivement supprimées
               </p>
             </div>
             <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteConfirmInput(''); }}>
@@ -1164,11 +1164,11 @@ export function Parametres() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-red-900">Suppression definitive du compte</AlertDialogTitle>
+                  <AlertDialogTitle className="text-red-900">Suppression définitive du compte</AlertDialogTitle>
                   <AlertDialogDescription className="space-y-3">
                     <span className="block">
-                      Cette action est <strong>irreversible</strong>. Toutes vos donnees personnelles, dossiers ESG,
-                      indicateurs, preuves et historiques seront definitivement supprimes conformement a l'article 17 du RGPD.
+                      Cette action est <strong>irréversible</strong>. Toutes vos données personnelles, dossiers ESG,
+                      indicateurs, preuves et historiques seront définitivement supprimés conformément à l'article 17 du RGPD.
                     </span>
                     <span className="block font-medium text-red-800">
                       Tapez SUPPRIMER pour confirmer :
@@ -1191,7 +1191,7 @@ export function Parametres() {
                     {deleteLoading ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Suppression...</>
                     ) : (
-                      <><Trash2 className="mr-2 h-4 w-4" /> Supprimer definitivement</>
+                      <><Trash2 className="mr-2 h-4 w-4" /> Supprimer définitivement</>
                     )}
                   </Button>
                 </AlertDialogFooter>
@@ -1201,24 +1201,24 @@ export function Parametres() {
         </CardContent>
       </Card>
 
-      {/* Conformite RGPD */}
+      {/* Conformité RGPD */}
       <Card className="border-blue-200/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ScrollText className="h-5 w-5" />
-            Conformite RGPD
+            Conformité RGPD
           </CardTitle>
           <CardDescription>
-            Exercez vos droits sur vos donnees personnelles (articles 15, 17, 20 du RGPD)
+            Exercez vos droits sur vos données personnelles (articles 15, 17, 20 du RGPD)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Inventaire des donnees */}
+          {/* Inventaire des données */}
           <div className="flex items-center justify-between p-4 border border-border rounded-lg">
             <div>
-              <p className="font-medium mb-1">Inventaire de mes donnees</p>
+              <p className="font-medium mb-1">Inventaire de mes données</p>
               <p className="text-sm text-muted-foreground">
-                Consultez la liste des donnees personnelles que nous conservons (Art. 15)
+                Consultez la liste des données personnelles que nous conservons (Art. 15)
               </p>
             </div>
             <Dialog open={inventoryOpen} onOpenChange={setInventoryOpen}>
@@ -1230,9 +1230,9 @@ export function Parametres() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Inventaire des donnees personnelles</DialogTitle>
+                  <DialogTitle>Inventaire des données personnelles</DialogTitle>
                   <DialogDescription>
-                    Conformement a l'article 15 du RGPD, voici l'ensemble des donnees que nous traitons.
+                    Conformément à l'article 15 du RGPD, voici l'ensemble des données que nous traitons.
                   </DialogDescription>
                 </DialogHeader>
                 {inventoryLoading ? (
@@ -1244,9 +1244,9 @@ export function Parametres() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Categorie</TableHead>
-                        <TableHead>Type de donnees</TableHead>
-                        <TableHead>Finalite</TableHead>
+                        <TableHead>Catégorie</TableHead>
+                        <TableHead>Type de données</TableHead>
+                        <TableHead>Finalité</TableHead>
                         <TableHead>Conservation</TableHead>
                         <TableHead className="text-right">Nb</TableHead>
                       </TableRow>
@@ -1270,12 +1270,12 @@ export function Parametres() {
             </Dialog>
           </div>
 
-          {/* Export des donnees */}
+          {/* Export des données */}
           <div className="flex items-center justify-between p-4 border border-border rounded-lg">
             <div>
-              <p className="font-medium mb-1">Exporter mes donnees</p>
+              <p className="font-medium mb-1">Exporter mes données</p>
               <p className="text-sm text-muted-foreground">
-                Telechargez toutes vos donnees au format JSON (Art. 20 - Portabilite)
+                Téléchargez toutes vos données au format JSON (Art. 20 — Portabilité)
               </p>
             </div>
             <Button variant="outline" onClick={handleExportAllData}>
@@ -1291,11 +1291,11 @@ export function Parametres() {
             <Label className="text-base font-medium">Consentements</Label>
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Conditions Generales d'Utilisation (CGU)</Label>
+                <Label>Conditions Générales d'Utilisation (CGU)</Label>
                 <p className="text-sm text-muted-foreground">
                   {user.currentUser?.consentCGU
-                    ? `Acceptees le ${new Date(user.currentUser.consentCGU).toLocaleDateString('fr-FR')}`
-                    : 'Non acceptees'}
+                    ? `Acceptées le ${new Date(user.currentUser.consentCGU).toLocaleDateString('fr-FR')}`
+                    : 'Non acceptées'}
                 </p>
               </div>
               <Switch
@@ -1306,11 +1306,11 @@ export function Parametres() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Traitement IA des donnees</Label>
+                <Label>Traitement IA des données</Label>
                 <p className="text-sm text-muted-foreground">
                   {user.currentUser?.consentAI
-                    ? `Autorise le ${new Date(user.currentUser.consentAI).toLocaleDateString('fr-FR')}`
-                    : "L'IA ne traitera pas vos donnees sans votre consentement"}
+                    ? `Autorisé le ${new Date(user.currentUser.consentAI).toLocaleDateString('fr-FR')}`
+                    : "L'IA ne traitera pas vos données sans votre consentement"}
                 </p>
               </div>
               <Switch
@@ -1322,15 +1322,15 @@ export function Parametres() {
 
           <Separator />
 
-          {/* Liens CGU / Politique de confidentialite */}
+          {/* Liens CGU / Politique de confidentialité */}
           <div className="flex flex-wrap gap-4">
             <Button variant="link" className="text-[#059669] p-0 h-auto" onClick={() => toast.info("CGU", { description: "Ouverture des CGU..." })}>
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              Conditions Generales d'Utilisation
+              Conditions Générales d'Utilisation
             </Button>
-            <Button variant="link" className="text-[#059669] p-0 h-auto" onClick={() => toast.info("Politique de confidentialite", { description: "Ouverture de la politique de confidentialite..." })}>
+            <Button variant="link" className="text-[#059669] p-0 h-auto" onClick={() => toast.info("Politique de confidentialité", { description: "Ouverture de la politique de confidentialité..." })}>
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              Politique de confidentialite
+              Politique de confidentialité
             </Button>
           </div>
         </CardContent>

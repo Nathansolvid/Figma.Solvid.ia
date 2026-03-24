@@ -250,6 +250,13 @@ export function AppContent() {
     return { filled, total, pct };
   };
 
+  // Views that require a dossier context — auto-select if exactly one dossier exists
+  const DOSSIER_REQUIRED_VIEWS: ViewType[] = [
+    'rapport-ia', 'preuves-workflow', 'evidence-vault',
+    'checklist-workflow', 'exports-livrables', 'import', 'saisie-dossier',
+    'audit-center', 'kpis',
+  ];
+
   const navigateToView = (view: ViewType) => {
     // Handle workflow:xxx:saisie deep links from DetailDossier
     const viewStr = view as string;
@@ -259,6 +266,12 @@ export function AppContent() {
         navigateToWorkflowView(workflowId, 'saisie-dossier');
         return;
       }
+    }
+
+    // Auto-set dossier context when navigating to a dossier-requiring view
+    // Only applies when: no dossier currently selected AND exactly 1 dossier exists
+    if (DOSSIER_REQUIRED_VIEWS.includes(view) && !currentDossierId && dossiers.length === 1) {
+      setCurrentDossierId(dossiers[0].id);
     }
 
     // Clear workflow filter when navigating to saisie without explicit workflow
@@ -301,6 +314,34 @@ export function AppContent() {
     if (dossierId) setSaisieDossierId(dossierId);
     navigateToView("saisie-dossier");
   };
+
+  // ── Breadcrumb contextuel ────────────────────────────────────────────────
+  const breadcrumbs = useMemo(() => {
+    const crumbs: Array<{ label: string; view?: ViewType }> = [];
+
+    // Always start with home
+    crumbs.push({ label: 'Tableau de bord', view: 'dashboard' });
+
+    // If we have a dossier context
+    if (currentDossierId && activeDossier) {
+      crumbs.push({ label: activeDossier.name || 'Dossier', view: 'detail-dossier' });
+    }
+
+    // Add current view label if not already the last crumb
+    const viewLabel = VIEW_LABELS[currentView] || currentView;
+    if (currentView !== 'dashboard' && currentView !== 'detail-dossier') {
+      // Add workflow name if in saisie with workflow
+      if (currentView === 'saisie-dossier' && activeWorkflowId) {
+        const wf = getWorkflowById(activeWorkflowId);
+        if (wf) crumbs.push({ label: wf.name });
+        else crumbs.push({ label: viewLabel });
+      } else {
+        crumbs.push({ label: viewLabel });
+      }
+    }
+
+    return crumbs;
+  }, [currentView, currentDossierId, activeDossier, activeWorkflowId]);
 
   // Loading state
   if (loading) {
@@ -369,39 +410,12 @@ export function AppContent() {
     );
   }
 
-  // ── Breadcrumb contextuel ────────────────────────────────────────────────
-  const breadcrumbs = useMemo(() => {
-    const crumbs: Array<{ label: string; view?: ViewType }> = [];
-
-    // Always start with home
-    crumbs.push({ label: 'Tableau de bord', view: 'dashboard' });
-
-    // If we have a dossier context
-    if (currentDossierId && activeDossier) {
-      crumbs.push({ label: activeDossier.name || 'Dossier', view: 'detail-dossier' });
-    }
-
-    // Add current view label if not already the last crumb
-    const viewLabel = VIEW_LABELS[currentView] || currentView;
-    if (currentView !== 'dashboard' && currentView !== 'detail-dossier') {
-      // Add workflow name if in saisie with workflow
-      if (currentView === 'saisie-dossier' && activeWorkflowId) {
-        const wf = getWorkflowById(activeWorkflowId);
-        if (wf) crumbs.push({ label: wf.name });
-        else crumbs.push({ label: viewLabel });
-      } else {
-        crumbs.push({ label: viewLabel });
-      }
-    }
-
-    return crumbs;
-  }, [currentView, currentDossierId, activeDossier, activeWorkflowId]);
-
   const handleCreateDossier = () => navigateToView("creation-dossier");
 
   const handleDossierCreated = (dossierId: string) => {
     setCurrentDossierId(dossierId);
-    navigateToView("detail-dossier");
+    setSaisieDossierId(dossierId);
+    navigateToView("saisie-dossier");
   };
 
   const handleOpenDossier = (dossierId: string) => {
@@ -1038,12 +1052,12 @@ export function AppContent() {
           )}
 
           {/* 4. Rapports — collapsible */}
-          {renderSectionHeader("rapports", "exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, ["exports-livrables", "rapport-ia", "audit-center", "preuves-requises"])}
+          {renderSectionHeader("rapports", "exports-livrables", "Rapports", <FileText className="h-4 w-4 flex-shrink-0" />, ["exports-livrables", "rapport-ia", "audit-center", "preuves-workflow"])}
           {sidebarOpen && !collapsedGroups.has("rapports") && (
             <div className="ml-7 space-y-0.5 mb-1">
               {renderNavItem("rapport-ia", "Rapport IA", <Sparkles className="h-4 w-4 flex-shrink-0" />)}
               {renderNavItem("audit-center", "Contrôle qualité", <Shield className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("preuves-requises", "Justificatifs", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("preuves-workflow", "Justificatifs", <CheckSquare className="h-4 w-4 flex-shrink-0" />)}
             </div>
           )}
 
@@ -1054,7 +1068,7 @@ export function AppContent() {
               {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
               {renderNavItem("glossaire", "Glossaire ESG", <BookOpen className="h-4 w-4 flex-shrink-0" />)}
               {renderNavItem("referentiels", "Référentiels", <Activity className="h-4 w-4 flex-shrink-0" />)}
-              {renderNavItem("historique", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
+              {renderNavItem("audit-trail", "Historique", <History className="h-4 w-4 flex-shrink-0" />)}
             </div>
           )}
 

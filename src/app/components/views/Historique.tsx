@@ -211,7 +211,7 @@ export function Historique({ posture }: HistoriqueProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Piste d'Audit</h1>
+        <h1 className="text-3xl font-bold mb-2">Historique</h1>
         <p className="text-muted-foreground">
           Historique complet de toutes les modifications et actions sur les données ESG
         </p>
@@ -373,10 +373,21 @@ export function Historique({ posture }: HistoriqueProps) {
                 {filteredEntries.length === 0 ? (
                   <div className="text-center py-12">
                     <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Aucun événement trouvé</h3>
-                    <p className="text-muted-foreground">
-                      Essayez de modifier vos filtres pour voir plus de résultats
-                    </p>
+                    {auditEntries.length === 0 ? (
+                      <>
+                        <h3 className="text-lg font-semibold mb-2">Aucun événement enregistré</h3>
+                        <p className="text-muted-foreground">
+                          Les modifications apportées à vos dossiers ESG apparaîtront ici automatiquement.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="text-lg font-semibold mb-2">Aucun résultat</h3>
+                        <p className="text-muted-foreground">
+                          Essayez de modifier vos filtres pour voir plus de résultats.
+                        </p>
+                      </>
+                    )}
                   </div>
                 ) : (
                   filteredEntries.map((entry) => (
