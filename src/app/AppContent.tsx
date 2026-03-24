@@ -221,12 +221,7 @@ export function AppContent() {
   // 🆕 Données dossier actif pour la sidebar
   const { getDossier, updateDossier, dossiers } = useDossiers();
 
-  // Auto-redirect to creation wizard if user has 0 dossiers
-  useEffect(() => {
-    if (!loading && dossiers.length === 0 && currentView === 'dashboard') {
-      setCurrentView('creation-dossier');
-    }
-  }, [loading, dossiers.length, currentView]);
+  // Note: no auto-redirect to creation-dossier; user can access dashboard with 0 dossiers
   const { getValues, getActivePeriod } = useVSMEData();
   const activeDossier = currentDossierId ? getDossier(currentDossierId) : null;
   const activeWorkflowDefs = (activeDossier?.selectedWorkflows || [])
