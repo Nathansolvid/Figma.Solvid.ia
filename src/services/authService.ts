@@ -197,11 +197,14 @@ class AuthService {
   async seedAdminIfNeeded(): Promise<void> {
     const creds = this.getLocalCredentials();
 
-    // ── Admin accounts to seed ───────────────────────────────────────────
+    // ── Admin accounts to seed — credentials from env vars only ─────────
+    // Set VITE_ADMIN_EMAIL, VITE_ADMIN_PASSWORD, VITE_ADMIN_NAME in Vercel env vars
     const ADMIN_ACCOUNTS = [
-      { email: import.meta.env.VITE_ADMIN_EMAIL || 'nathan.glatt@icloud.com', password: import.meta.env.VITE_ADMIN_PASSWORD || 'Solvid2026!', name: 'Nathan Glatt' },
-      { email: 'clement@nazar-seo.eu', password: 'Solvid2026!', name: 'Clément Nazar' },
-      { email: 'antoine.brun.pro1@gmail.com', password: 'Solvid2026!', name: 'Antoine Brun' },
+      {
+        email: import.meta.env.VITE_ADMIN_EMAIL,
+        password: import.meta.env.VITE_ADMIN_PASSWORD,
+        name: import.meta.env.VITE_ADMIN_NAME || 'Administrateur',
+      },
     ].filter(a => a.email && a.password);
 
     if (ADMIN_ACCOUNTS.length === 0) return;
