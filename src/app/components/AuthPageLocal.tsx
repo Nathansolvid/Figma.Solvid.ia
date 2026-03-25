@@ -42,6 +42,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const [signupName, setSignupName] = useState('');
   const [signupOrgName, setSignupOrgName] = useState('');
   const [signupRole, setSignupRole] = useState('CLIENT_OWNER');
+  const [signupRoleCustom, setSignupRoleCustom] = useState('');
   const [acceptCGU, setAcceptCGU] = useState(false);
   const [acceptAI, setAcceptAI] = useState(false);
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
@@ -101,6 +102,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signupName) { toast.error('Ton nom est requis'); return; }
+    if (signupRole === 'OTHER' && !signupRoleCustom.trim()) { toast.error('Précise ton rôle'); return; }
     if (!acceptCGU) { toast.error('Accepte les CGU pour continuer'); return; }
     setLoading(true);
     try {
@@ -111,7 +113,8 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
           emailRedirectTo: window.location.origin,
           data: {
             name: signupName,
-            role: signupRole,
+            role: signupRole === 'OTHER' ? 'VIEWER' : signupRole,
+            roleLabel: signupRole === 'OTHER' ? signupRoleCustom.trim() : undefined,
             organizationId: crypto.randomUUID(),
             organizationName: signupOrgName || 'Mon Organisation',
             consentCGU: new Date().toISOString(),
@@ -125,7 +128,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
       fetch('/api/notify-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: signupName, email: signupEmail, org: signupOrgName, role: signupRole }),
+        body: JSON.stringify({ name: signupName, email: signupEmail, org: signupOrgName, role: signupRole === 'OTHER' ? `Autre — ${signupRoleCustom}` : signupRole }),
       }).catch(() => {});
 
       setView('signup-confirm');
@@ -378,6 +381,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                       { value: 'CONSULTANT', label: 'Consultant ESG' },
                       { value: 'CLIENT_CONTRIBUTOR', label: 'Analyste données' },
                       { value: 'AUDITOR', label: 'Auditeur' },
+                      { value: 'OTHER', label: 'Autre' },
                     ].map(r => (
                       <button
                         key={r.value}
@@ -393,6 +397,16 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                       </button>
                     ))}
                   </div>
+                  {signupRole === 'OTHER' && (
+                    <Input
+                      type="text"
+                      placeholder="Précise ton rôle..."
+                      value={signupRoleCustom}
+                      onChange={e => setSignupRoleCustom(e.target.value)}
+                      className="mt-2"
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-3 pt-1 border-t border-gray-100">
