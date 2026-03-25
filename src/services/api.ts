@@ -68,38 +68,54 @@ export const apiClient = {
     return { evidence };
   },
   
-  // 🆕 Audit Trail (return local data from IndexedDB)
+  // Audit Trail (local IndexedDB — graceful fallback if store missing)
   getAuditTrail: async (filters?: any) => {
-    const entries = await dataProvider.store.list('audit_logs');
-    return { entries };
+    try {
+      const entries = await dataProvider.store.list('audit_logs');
+      return { entries: entries ?? [] };
+    } catch { return { entries: [] }; }
   },
   getOrganizationAuditTrail: async (filters?: any) => {
-    const entries = await dataProvider.store.list('audit_logs');
-    const limit = filters?.limit || 50;
-    const offset = filters?.offset || 0;
-    const paginatedEntries = entries.slice(offset, offset + limit);
-    return {
-      entries: paginatedEntries,
-      total: entries.length,
-      hasMore: offset + limit < entries.length,
-    };
+    try {
+      const entries = await dataProvider.store.list('audit_logs') ?? [];
+      const limit = filters?.limit || 50;
+      const offset = filters?.offset || 0;
+      return {
+        entries: entries.slice(offset, offset + limit),
+        total: entries.length,
+        hasMore: offset + limit < entries.length,
+      };
+    } catch {
+      return { entries: [], total: 0, hasMore: false };
+    }
   },
   getIndicatorAuditTrail: async (indicatorId: string) => {
-    const entries = await dataProvider.store.listByIndex('audit_logs', 'entityId', indicatorId);
-    return { entries };
+    try {
+      const entries = await dataProvider.store.listByIndex('audit_logs', 'entityId', indicatorId);
+      return { entries: entries ?? [] };
+    } catch { return { entries: [] }; }
   },
   getAuditStatistics: async (filters?: any) => {
-    const entries = await dataProvider.store.list('audit_logs');
-    // Basic statistics
-    const statistics = {
-      totalEntries: entries.length,
-      entriesByAction: {} as any,
-      entriesByEntityType: {} as any,
-      entriesByUser: [] as any[],
-      mostActiveEntities: [] as any[],
-      recentActivity: [] as any[],
-    };
-    return { statistics };
+    try {
+      const entries = await dataProvider.store.list('audit_logs') ?? [];
+      return {
+        statistics: {
+          totalEntries: entries.length,
+          entriesByAction: {},
+          entriesByEntityType: {},
+          entriesByUser: [],
+          mostActiveEntities: [],
+          recentActivity: [],
+        },
+      };
+    } catch {
+      return {
+        statistics: {
+          totalEntries: 0, entriesByAction: {}, entriesByEntityType: {},
+          entriesByUser: [], mostActiveEntities: [], recentActivity: [],
+        },
+      };
+    }
   },
   createAuditEntry: async (entry: any) => {
     const newEntry = {

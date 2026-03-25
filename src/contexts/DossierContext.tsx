@@ -62,14 +62,22 @@ export function DossierProvider({ children }: { children: ReactNode }) {
     idbGetDossiers().then(stored => {
       const isAdmin = currentUser?.role === Role.ADMIN;
       const filtered = isAdmin
-        ? stored  // Admin voit tous les dossiers de la plateforme
-        : currentUser?.organizationId
-          ? stored.filter(d => d.organizationId === currentUser.organizationId)
-          : [];  // Pas d'org = rien
+        ? stored
+        : stored.filter(d => {
+            // Dossiers avec org correspondante
+            if (d.organizationId && currentUser?.organizationId) {
+              return d.organizationId === currentUser.organizationId;
+            }
+            // Dossiers legacy (sans organizationId) — visible par leur propriétaire
+            if (!d.organizationId) {
+              return !currentUser?.id || d.ownerId === currentUser.id;
+            }
+            return false;
+          });
       setDossiers(filtered);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [currentUser?.organizationId, currentUser?.role]);
+  }, [currentUser?.organizationId, currentUser?.role, currentUser?.id]);
 
   useEffect(() => {
     loadFromIDB();

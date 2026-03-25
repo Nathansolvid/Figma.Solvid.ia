@@ -243,13 +243,14 @@ export function useOrganizationAuditTrail(filters?: AuditFilters) {
     queryFn: async () => {
       const response = await apiClient.getOrganizationAuditTrail(filters);
       return {
-        entries: response.entries as AuditEntry[],
-        total: response.total as number,
-        hasMore: response.hasMore as boolean,
+        entries: (response.entries ?? []) as AuditEntry[],
+        total: (response.total ?? 0) as number,
+        hasMore: (response.hasMore ?? false) as boolean,
       };
     },
-    staleTime: 1 * 60 * 1000, // 1 minute - organization trail très actif
+    staleTime: 1 * 60 * 1000,
     gcTime: 3 * 60 * 1000,
+    retry: 0, // No retry — local data, failures are immediate
   });
 }
 
@@ -261,8 +262,9 @@ export function useAuditStatistics(filters?: Omit<AuditFilters, 'limit' | 'offse
       const response = await apiClient.getAuditStatistics(filters);
       return { statistics: response.statistics as AuditStatistics };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - statistics moins urgentes
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: 0,
   });
 }
 

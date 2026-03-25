@@ -1058,7 +1058,7 @@ export function AppContent() {
           )}
 
           {/* 5. Réglages — collapsible */}
-          {renderSectionHeader("reglages", "parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, ["parametres", "guide-aide", "glossaire", "historique", "referentiels"])}
+          {renderSectionHeader("reglages", "parametres", "Réglages", <Settings className="h-4 w-4 flex-shrink-0" />, ["parametres", "guide-aide", "glossaire", "audit-trail", "referentiels"])}
           {sidebarOpen && !collapsedGroups.has("reglages") && (
             <div className="ml-7 space-y-0.5 mb-1">
               {renderNavItem("guide-aide", "Guide & Aide", <HelpCircle className="h-4 w-4 flex-shrink-0" />)}
