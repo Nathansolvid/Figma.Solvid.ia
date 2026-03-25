@@ -108,6 +108,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
         email: signupEmail,
         password: signupPassword,
         options: {
+          emailRedirectTo: window.location.origin,
           data: {
             name: signupName,
             role: signupRole,
