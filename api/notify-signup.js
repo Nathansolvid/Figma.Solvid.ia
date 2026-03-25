@@ -41,76 +41,85 @@ export default async function handler(req, res) {
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 20px;">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nouvelle inscription Solvid.IA</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;padding:40px 16px;">
     <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
 
-        <!-- Header -->
-        <tr><td style="padding-bottom:28px;text-align:center;">
-          <div style="display:inline-block;background:linear-gradient(135deg,#0A3B2E 0%,#065f46 50%,#059669 100%);padding:20px 40px;border-radius:14px;box-shadow:0 4px 24px rgba(5,150,105,0.3);">
-            <span style="font-size:26px;font-weight:800;color:white;letter-spacing:-0.5px;">Solvid<span style="color:#6ee7b7">.IA</span></span>
-            <div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:2px;text-transform:uppercase;">Plateforme ESG</div>
-          </div>
+        <!-- Logo header -->
+        <tr><td align="center" style="padding-bottom:24px;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="background:linear-gradient(135deg,#064e3b 0%,#059669 100%);border-radius:12px;padding:16px 32px;text-align:center;">
+              <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Solvid<span style="color:#6ee7b7">.IA</span></span>
+              <div style="font-size:10px;color:rgba(255,255,255,0.6);letter-spacing:2px;text-transform:uppercase;margin-top:3px;">Plateforme ESG</div>
+            </td></tr>
+          </table>
         </td></tr>
 
-        <!-- Card -->
-        <tr><td style="background:#1e293b;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+        <!-- Main card -->
+        <tr><td style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-          <!-- Card header -->
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td style="padding:28px 32px 24px;border-bottom:1px solid #334155;">
-              <table cellpadding="0" cellspacing="0">
+          <!-- Card top bar -->
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="background:linear-gradient(135deg,#064e3b 0%,#059669 100%);padding:20px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="vertical-align:middle;padding-right:16px;">
-                    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#059669,#0A3B2E);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;text-align:center;line-height:48px;">${initials}</div>
+                  <td style="vertical-align:middle;padding-right:14px;">
+                    <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;line-height:44px;font-size:16px;font-weight:700;color:#ffffff;">${initials}</div>
                   </td>
                   <td style="vertical-align:middle;">
-                    <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">Nouvelle inscription</div>
-                    <div style="font-size:13px;color:#64748b;">${timestamp}</div>
+                    <div style="font-size:17px;font-weight:700;color:#ffffff;margin-bottom:2px;">Nouvelle inscription</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.7);">${timestamp}</div>
                   </td>
                 </tr>
               </table>
             </td></tr>
 
             <!-- Fields -->
-            <tr><td style="padding:0 32px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr style="border-bottom:1px solid #1e293b;">
-                  <td style="padding:16px 0 16px;width:110px;font-size:12px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #334155;">Nom</td>
-                  <td style="padding:16px 0 16px;font-size:15px;font-weight:600;color:#f1f5f9;border-bottom:1px solid #334155;">${name || '—'}</td>
+            <tr><td style="padding:8px 28px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:16px 0;width:120px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #f1f5f9;vertical-align:middle;">NOM</td>
+                  <td style="padding:16px 0;font-size:15px;font-weight:600;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;">${name || '—'}</td>
                 </tr>
                 <tr>
-                  <td style="padding:16px 0;width:110px;font-size:12px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #334155;">Email</td>
-                  <td style="padding:16px 0;font-size:15px;color:#38bdf8;border-bottom:1px solid #334155;"><a href="mailto:${email}" style="color:#38bdf8;text-decoration:none;">${email || '—'}</a></td>
+                  <td style="padding:16px 0;width:120px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #f1f5f9;vertical-align:middle;">EMAIL</td>
+                  <td style="padding:16px 0;font-size:15px;border-bottom:1px solid #f1f5f9;vertical-align:middle;"><a href="mailto:${email}" style="color:#0369a1;text-decoration:none;font-weight:500;">${email || '—'}</a></td>
                 </tr>
                 <tr>
-                  <td style="padding:16px 0;width:110px;font-size:12px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #334155;">Organisation</td>
-                  <td style="padding:16px 0;font-size:15px;color:#f1f5f9;border-bottom:1px solid #334155;">${org || '—'}</td>
+                  <td style="padding:16px 0;width:120px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #f1f5f9;vertical-align:middle;">ORGANISATION</td>
+                  <td style="padding:16px 0;font-size:15px;color:#0f172a;border-bottom:1px solid #f1f5f9;vertical-align:middle;">${org || '—'}</td>
                 </tr>
                 <tr>
-                  <td style="padding:16px 0;width:110px;font-size:12px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;">Rôle</td>
-                  <td style="padding:16px 0;">
-                    <span style="display:inline-block;padding:4px 12px;background:${roleColor}22;color:${roleColor};border-radius:20px;font-size:13px;font-weight:600;border:1px solid ${roleColor}44;">${roleLabel}</span>
+                  <td style="padding:16px 0;width:120px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;vertical-align:middle;">RÔLE</td>
+                  <td style="padding:16px 0;vertical-align:middle;">
+                    <span style="display:inline-block;padding:4px 14px;background-color:${roleColor}18;color:${roleColor};border-radius:20px;font-size:13px;font-weight:600;border:1px solid ${roleColor}30;">${roleLabel}</span>
                   </td>
                 </tr>
               </table>
             </td></tr>
 
             <!-- CTA -->
-            <tr><td style="padding:24px 32px 28px;">
-              <a href="https://supabase.com/dashboard/project/juoeblhhbarzsqcyqrkq/auth/users" style="display:block;text-align:center;padding:14px 24px;background:linear-gradient(135deg,#059669,#0A3B2E);color:white;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;letter-spacing:0.3px;">
-                Gérer les accès dans Supabase →
-              </a>
+            <tr><td style="padding:24px 28px 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td align="center">
+                  <a href="https://supabase.com/dashboard/project/juoeblhhbarzsqcyqrkq/auth/users"
+                    style="display:inline-block;padding:13px 28px;background:linear-gradient(135deg,#059669 0%,#064e3b 100%);color:#ffffff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;letter-spacing:0.2px;">
+                    Gérer les accès dans Supabase →
+                  </a>
+                </td></tr>
+              </table>
             </td></tr>
           </table>
         </td></tr>
 
-        <!-- Note -->
+        <!-- Footer -->
         <tr><td style="padding:20px 0 0;text-align:center;">
-          <p style="margin:0;font-size:12px;color:#475569;">L'utilisateur doit confirmer son email avant de se connecter.</p>
-          <p style="margin:6px 0 0;font-size:11px;color:#334155;">Solvid.IA · Plateforme ESG &amp; CSRD</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#64748b;">L'utilisateur doit confirmer son email avant de se connecter.</p>
+          <p style="margin:0;font-size:11px;color:#94a3b8;">Solvid.IA · Plateforme ESG &amp; CSRD</p>
         </td></tr>
 
       </table>
