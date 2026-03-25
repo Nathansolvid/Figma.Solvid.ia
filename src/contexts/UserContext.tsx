@@ -3,7 +3,6 @@ import { createContext, useContext, useState, useEffect, useMemo, useCallback, u
 import { Role } from '@/permissions';
 
 import { dataProvider } from '@/services/dataProvider';
-import { clearIDBForNewSession } from '@/services/idbService';
 import { packService } from '@/services/packService';
 import { collaborationService } from '@/services/collaborationService';
 import type { SubscriptionInfo } from '@/services/invitationService';
@@ -144,13 +143,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-          const newUserId = session.user.id;
-          // Clear IDB if a different user logs in (prevents cross-account data leakage)
-          const lastUserId = sessionStorage.getItem('solvid_last_uid');
-          if (event === 'SIGNED_IN' && lastUserId && lastUserId !== newUserId) {
-            clearIDBForNewSession().catch(() => {});
-          }
-          sessionStorage.setItem('solvid_last_uid', newUserId);
+          // Track last user — used only for explicit clear if needed in future
+          sessionStorage.setItem('solvid_last_uid', session.user.id);
 
           const user = mapSupabaseUser(session.user);
           activateSync(user);
