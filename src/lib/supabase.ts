@@ -19,8 +19,7 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       persistSession: true,
       storageKey: 'solvid-auth',
-      detectSessionInUrl: true, // needed for email confirmation redirect
-      flowType: 'pkce',         // PKCE flow — tokens never exposed in URL
+      detectSessionInUrl: true,
     },
   }
 );
