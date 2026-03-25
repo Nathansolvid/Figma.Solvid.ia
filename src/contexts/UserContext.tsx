@@ -137,7 +137,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     // Listen for auth state changes (login/logout from any tab)
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (session?.user && event === 'SIGNED_IN') {
+        // Strip any auth tokens from the URL immediately — prevents sharing session via URL
+        if (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
           const user = mapSupabaseUser(session.user);
           activateSync(user);
           setCurrentUserState(user);
