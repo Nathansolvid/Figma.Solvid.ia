@@ -5,6 +5,7 @@ import {
   idbDeleteDossier,
 } from '@/services/idbService';
 import { useUser } from '@/contexts/UserContext';
+import { Role } from '@/permissions';
 import { v4 as uuidv4 } from 'uuid';
 
 // Phase 12b : types de période
@@ -59,13 +60,16 @@ export function DossierProvider({ children }: { children: ReactNode }) {
   // ── Charger depuis IDB (initial + après sync cloud) ──────────────────────
   const loadFromIDB = useCallback(() => {
     idbGetDossiers().then(stored => {
-      const filtered = currentUser?.organizationId
-        ? stored.filter(d => !d.organizationId || d.organizationId === currentUser.organizationId)
-        : stored;
+      const isAdmin = currentUser?.role === Role.ADMIN;
+      const filtered = isAdmin
+        ? stored  // Admin voit tous les dossiers de la plateforme
+        : currentUser?.organizationId
+          ? stored.filter(d => d.organizationId === currentUser.organizationId)
+          : [];  // Pas d'org = rien
       setDossiers(filtered);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [currentUser?.organizationId]);
+  }, [currentUser?.organizationId, currentUser?.role]);
 
   useEffect(() => {
     loadFromIDB();

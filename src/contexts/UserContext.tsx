@@ -1,6 +1,7 @@
 // Auth via Supabase — server-side credentials, no localStorage passwords
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { Role } from '@/permissions';
+
 import { dataProvider } from '@/services/dataProvider';
 import { packService } from '@/services/packService';
 import { collaborationService } from '@/services/collaborationService';
@@ -36,10 +37,12 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 // ── Pull dossiers from Supabase into IDB (initial sync) ───────────────────────
-async function pullFromCloud(userId: string, orgId: string): Promise<void> {
+async function pullFromCloud(userId: string, orgId: string, isAdmin = false): Promise<void> {
   try {
-    // Pull dossiers
-    const remoteDossiers = await supabaseProvider.listDossiers(orgId);
+    // Admin pulls all dossiers; others pull only their org
+    const remoteDossiers = isAdmin
+      ? await supabaseProvider.listAllDossiers()
+      : await supabaseProvider.listDossiers(orgId);
     for (const d of remoteDossiers) {
       const mapped = {
         id: d.id,
@@ -72,9 +75,10 @@ async function pullFromCloud(userId: string, orgId: string): Promise<void> {
 
 // ── Activate sync engine for a logged-in user ─────────────────────────────────
 function activateSync(user: User): void {
+  const isAdmin = user.role === Role.ADMIN;
   syncEngine.enableSync(user.id, user.organizationId).then(() => {
-    // Pull remote data then flush any offline queue
-    pullFromCloud(user.id, user.organizationId).then(() => {
+    // Admin pulls all dossiers; others pull only their org
+    pullFromCloud(user.id, user.organizationId, isAdmin).then(() => {
       syncEngine.flushQueue().catch(() => {});
     });
   }).catch(() => {});

@@ -68,6 +68,16 @@ class SupabaseProvider {
     return data ?? [];
   }
 
+  // Admin only — fetch all dossiers across all organizations
+  async listAllDossiers(): Promise<Tables['dossiers']['Row'][]> {
+    const { data, error } = await supabase
+      .from('dossiers')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
   async getDossier(id: string): Promise<Tables['dossiers']['Row'] | null> {
     const { data, error } = await supabase
       .from('dossiers')
