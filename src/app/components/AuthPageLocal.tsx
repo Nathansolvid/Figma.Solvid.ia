@@ -122,7 +122,9 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
           },
         },
       });
-      if (error) throw error;
+      // "Error sending confirmation email" = account created but SMTP failed
+      // Show confirmation screen anyway so signup isn't blocked
+      if (error && !error.message.includes('sending confirmation email')) throw error;
 
       // Notify admin
       fetch('/api/notify-signup', {
