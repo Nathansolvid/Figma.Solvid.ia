@@ -482,8 +482,12 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                 <button
                   className="text-[#059669] font-medium hover:underline"
                   onClick={async () => {
-                    await supabase.auth.resend({ type: 'signup', email: signupEmail });
-                    toast.success('Email renvoyé !');
+                    const { error } = await supabase.auth.resend({ type: 'signup', email: signupEmail });
+                    if (error) {
+                      toast.error('Erreur : ' + error.message);
+                    } else {
+                      toast.success(`Email renvoyé à ${signupEmail}`);
+                    }
                   }}
                 >
                   Renvoyer

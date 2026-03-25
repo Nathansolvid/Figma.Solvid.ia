@@ -134,7 +134,7 @@ export default async function handler(req, res) {
 
         <!-- Footer -->
         <tr><td style="padding:20px 0 0;text-align:center;">
-          <p style="margin:0 0 4px;font-size:12px;color:#64748b;">L'utilisateur peut se connecter immédiatement — email confirmé automatiquement.</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#64748b;">L'utilisateur doit confirmer son email avant de se connecter.</p>
           <p style="margin:0;font-size:11px;color:#94a3b8;">Solvid.IA · Plateforme ESG &amp; CSRD</p>
         </td></tr>
 
