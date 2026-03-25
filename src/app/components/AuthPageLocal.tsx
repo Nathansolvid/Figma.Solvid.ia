@@ -28,6 +28,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   const [view, setView] = useState<AuthView>('login');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -36,6 +37,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   // Signup — step 1
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   // Signup — step 2
   const [signupName, setSignupName] = useState('');
   const [signupOrgName, setSignupOrgName] = useState('');
@@ -89,8 +91,9 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   // ── Signup step 1 → step 2 ─────────────────────────────────────────────────
   const handleSignupStep1 = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupEmail || !signupPassword) { toast.error('Remplis tous les champs'); return; }
+    if (!signupEmail || !signupPassword || !signupConfirmPassword) { toast.error('Remplis tous les champs'); return; }
     if (signupPassword.length < 8) { toast.error('Mot de passe : 8 caractères minimum'); return; }
+    if (signupPassword !== signupConfirmPassword) { toast.error('Les mots de passe ne correspondent pas'); return; }
     setSignupStep(2);
   };
 
@@ -126,7 +129,18 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
 
       setView('signup-confirm');
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la création du compte');
+      const msg = err?.message || '';
+      const friendlyError =
+        msg.includes('User already registered') || msg.includes('already been registered')
+          ? 'Un compte existe déjà avec cet email. Connecte-toi ou réinitialise ton mot de passe.'
+          : msg.includes('Email rate limit')
+            ? 'Trop de tentatives. Attends quelques minutes avant de réessayer.'
+            : msg.includes('invalid') && msg.toLowerCase().includes('email')
+              ? 'Adresse email invalide.'
+              : msg.includes('Password should be')
+                ? 'Le mot de passe doit contenir au moins 8 caractères.'
+                : msg || 'Erreur lors de la création du compte';
+      toast.error(friendlyError);
     } finally {
       setLoading(false);
     }
@@ -286,6 +300,26 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                         <div key={n} className={`h-1 flex-1 rounded-full transition-all ${signupPassword.length >= n ? 'bg-[#059669]' : 'bg-gray-200'}`} />
                       ))}
                     </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="sConfirmPassword">Confirmer le mot de passe</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input id="sConfirmPassword" type={showConfirmPassword ? 'text' : 'password'} placeholder="••••••••"
+                      className={`pl-9 pr-9 ${signupConfirmPassword.length > 0 && signupPassword !== signupConfirmPassword ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+                      value={signupConfirmPassword} onChange={e => setSignupConfirmPassword(e.target.value)} required />
+                    <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {signupConfirmPassword.length > 0 && signupPassword !== signupConfirmPassword && (
+                    <p className="text-xs text-red-500">Les mots de passe ne correspondent pas</p>
+                  )}
+                  {signupConfirmPassword.length > 0 && signupPassword === signupConfirmPassword && (
+                    <p className="text-xs text-[#059669]">Mots de passe identiques ✓</p>
                   )}
                 </div>
 
