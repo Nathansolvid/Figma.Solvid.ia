@@ -59,18 +59,23 @@ export function DossierProvider({ children }: { children: ReactNode }) {
 
   // ── Charger depuis IDB (initial + après sync cloud) ──────────────────────
   const loadFromIDB = useCallback(() => {
+    // Ne pas vider les dossiers quand l'utilisateur est déconnecté
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     idbGetDossiers().then(stored => {
-      const isAdmin = currentUser?.role === Role.ADMIN;
+      const isAdmin = currentUser.role === Role.ADMIN;
       const filtered = isAdmin
         ? stored
         : stored.filter(d => {
             // Dossiers avec org correspondante
-            if (d.organizationId && currentUser?.organizationId) {
+            if (d.organizationId && currentUser.organizationId) {
               return d.organizationId === currentUser.organizationId;
             }
             // Dossiers legacy (sans organizationId) — visible par leur propriétaire
             if (!d.organizationId) {
-              return !currentUser?.id || d.ownerId === currentUser.id;
+              return d.ownerId === currentUser.id;
             }
             return false;
           });
