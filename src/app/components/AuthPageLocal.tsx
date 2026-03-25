@@ -106,25 +106,25 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     if (!acceptCGU) { toast.error('Accepte les CGU pour continuer'); return; }
     setLoading(true);
     try {
-      const { data: signupData, error } = await supabase.auth.signUp({
-        email: signupEmail,
-        password: signupPassword,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            name: signupName,
-            role: signupRole === 'OTHER' ? 'VIEWER' : signupRole,
-            roleLabel: signupRole === 'OTHER' ? signupRoleCustom.trim() : undefined,
-            organizationId: crypto.randomUUID(),
-            organizationName: signupOrgName || 'Mon Organisation',
-            consentCGU: new Date().toISOString(),
-            consentAI: acceptAI ? new Date().toISOString() : null,
-          },
-        },
+      // Use server-side API to create user with email pre-confirmed
+      // (avoids Resend SMTP restriction on free plan)
+      const res = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: signupEmail,
+          password: signupPassword,
+          name: signupName,
+          role: signupRole === 'OTHER' ? 'VIEWER' : signupRole,
+          roleLabel: signupRole === 'OTHER' ? signupRoleCustom.trim() : undefined,
+          organizationId: crypto.randomUUID(),
+          organizationName: signupOrgName || 'Mon Organisation',
+          consentCGU: new Date().toISOString(),
+          consentAI: acceptAI ? new Date().toISOString() : null,
+        }),
       });
-      // If user was created (data.user exists), proceed regardless of SMTP errors
-      // Only throw if signup truly failed (no user created)
-      if (error && !signupData?.user) throw error;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Erreur lors de la création du compte');
 
       // Notify admin
       fetch('/api/notify-signup', {
@@ -444,36 +444,18 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                 <CheckCircle2 className="w-10 h-10 text-[#059669]" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Vérifie ta boîte mail</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Compte créé !</h1>
                 <p className="text-sm text-gray-500 mt-2">
-                  Un email de confirmation a été envoyé à<br />
-                  <strong className="text-gray-700">{signupEmail}</strong>
+                  Ton compte <strong className="text-gray-700">{signupEmail}</strong> est prêt.<br />
+                  Tu peux te connecter immédiatement.
                 </p>
               </div>
-              <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2">
-                <p className="text-xs font-medium text-gray-700">Prochaines étapes :</p>
-                {[
-                  'Ouvre l\'email de Solvid.IA',
-                  'Clique sur le lien de confirmation',
-                  'Reviens ici pour te connecter',
-                ].map((step, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                    <div className="w-5 h-5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
-                      {i + 1}
-                    </div>
-                    {step}
-                  </div>
-                ))}
-              </div>
-              <Button variant="outline" className="w-full" onClick={() => setView('login')}>
-                Retour à la connexion
+              <Button className="w-full bg-[#059669] hover:bg-[#048558] h-11" onClick={() => {
+                setLoginEmail(signupEmail);
+                setView('login');
+              }}>
+                Se connecter <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-              <p className="text-xs text-gray-400">
-                Email non reçu ?{' '}
-                <button className="text-[#059669] hover:underline" onClick={handleSignup}>
-                  Renvoyer
-                </button>
-              </p>
             </div>
           )}
 
