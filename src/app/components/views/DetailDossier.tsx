@@ -28,7 +28,19 @@ import {
   AlertTriangle,
   FileDown,
   Minus,
+  BookOpen,
+  Plus,
+  X,
+  BarChart2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/app/components/ui/dialog";
+import { WORKFLOW_LIBRARY } from "@/utils/workflowLibrary";
 import { DoubleMaterialiteNew } from "@/app/components/views/DoubleMaterialiteNew";
 import { StructureIndicateurs } from "@/app/components/views/StructureIndicateurs";
 import { DonneesQuantitatives } from "@/app/components/views/DonneesQuantitatives";
@@ -92,11 +104,13 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 };
 
 export function DetailDossier({ dossierId, onBack, onNavigate }: DetailDossierProps) {
-  const { getDossier } = useDossiers();
+  const { getDossier, updateDossier } = useDossiers();
   const { currentUser } = useUser();
   const { getStats, getStatsByPilier, loadDossier, clearDossier, getActivePeriod, getValueComparison, getValues } = useVSMEData();
   const [activeTab, setActiveTab] = useState("overview");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showAddReferentiel, setShowAddReferentiel] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   // 🆕 Charger les données VSME de ce dossier au montage
   useEffect(() => {
@@ -432,8 +446,16 @@ export function DetailDossier({ dossierId, onBack, onNavigate }: DetailDossierPr
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+          <TabsTrigger value="referentiels" className="flex items-center gap-1">
+            Référentiels
+            {workflowIds.length > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-[#059669] text-white rounded-full w-4 h-4 flex items-center justify-center">
+                {workflowIds.length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="dma">Double Matérialité</TabsTrigger>
           <TabsTrigger value="mapping">Structure données</TabsTrigger>
           <TabsTrigger value="quantitatives">Données Quanti</TabsTrigger>
@@ -1151,6 +1173,305 @@ export function DetailDossier({ dossierId, onBack, onNavigate }: DetailDossierPr
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ══════════════════════════════════════════════
+            ONGLET RÉFÉRENTIELS
+        ══════════════════════════════════════════════ */}
+        <TabsContent value="referentiels" className="space-y-6">
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BookOpen className="h-5 w-5 text-[#0F4C3A]" />
+              <h3 className="font-semibold text-lg">Référentiels actifs</h3>
+              <Badge variant="outline">{workflowIds.length} sélectionné{workflowIds.length !== 1 ? "s" : ""}</Badge>
+            </div>
+            <Button
+              className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
+              onClick={() => setShowAddReferentiel(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un référentiel
+            </Button>
+          </div>
+
+          {/* Liste des référentiels actifs */}
+          {workflows.length === 0 ? (
+            <Card className="border-2 border-dashed border-gray-200">
+              <CardContent className="p-10 text-center">
+                <BookOpen className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium text-gray-600 mb-1">Aucun référentiel sélectionné</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Les référentiels définissent les indicateurs ESG à renseigner pour ce dossier.
+                </p>
+                <Button
+                  className="bg-[#0F4C3A] hover:bg-[#0A3B2E]"
+                  onClick={() => setShowAddReferentiel(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter un référentiel
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {workflows.map((workflow) => {
+                if (!workflow) return null;
+                const wfSections = workflow.indicators || [];
+                const isRemoving = confirmRemoveId === workflow.id;
+
+                return (
+                  <Card key={workflow.id} className="overflow-hidden">
+                    {/* En-tête */}
+                    <div className="flex items-start justify-between p-5 pb-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-2xl leading-none flex-shrink-0">{workflow.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h4 className="font-semibold">{workflow.name}</h4>
+                            <span
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: CATEGORY_COLOR[workflow.category] + "18", color: CATEGORY_COLOR[workflow.category] }}
+                            >
+                              {workflow.category}
+                            </span>
+                            <span
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: DIFFICULTY_COLOR[workflow.difficulty] + "15", color: DIFFICULTY_COLOR[workflow.difficulty] }}
+                            >
+                              {workflow.difficulty}
+                            </span>
+                            {workflow.regulatory && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                                Réglementaire
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {workflow.description} · ⏱ {workflow.estimatedDuration}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => onNavigate?.("saisie-dossier")}
+                        >
+                          <PenLine className="h-3.5 w-3.5 mr-1.5" />
+                          Saisir
+                        </Button>
+                        {isRemoving ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-red-600 font-medium whitespace-nowrap">Retirer ?</span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs px-2"
+                              onClick={() => {
+                                const updated = workflowIds.filter(id => id !== workflow.id);
+                                updateDossier(dossierId, { selectedWorkflows: updated });
+                                setConfirmRemoveId(null);
+                              }}
+                            >
+                              Oui
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs px-2"
+                              onClick={() => setConfirmRemoveId(null)}
+                            >
+                              Non
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => setConfirmRemoveId(workflow.id)}
+                            title="Retirer ce référentiel"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sections VSME couvertes */}
+                    {wfSections.length > 0 && (
+                      <div className="px-5 pb-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                          Sections couvertes
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {wfSections.map(sectionId => (
+                            <span
+                              key={sectionId}
+                              className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-[#E8F3F0] text-[#0F4C3A]"
+                            >
+                              {sectionId}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stats par période (si multi-périodes) */}
+                    {periodMode !== 'annuel' && periods.length > 1 && (
+                      <div className="px-5 pb-4 pt-1">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+                          <BarChart2 className="h-3 w-3" />
+                          Progression par période
+                        </p>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(periods.length, 4)}, minmax(0, 1fr))` }}>
+                          {periods.map(period => {
+                            const stats = getStats(dossierId, "B", period.id);
+                            const pct = stats.pct;
+                            const isActive = period.id === activePeriod;
+                            return (
+                              <div
+                                key={period.id}
+                                className={`rounded-lg p-2.5 border text-center transition-colors ${
+                                  isActive ? "border-[#059669] bg-[#f0fdf4]" : "border-gray-100 bg-gray-50"
+                                }`}
+                              >
+                                <p className="text-[11px] font-semibold text-muted-foreground mb-1 truncate">{period.label}</p>
+                                <p
+                                  className="text-lg font-bold"
+                                  style={{ color: pct >= 80 ? "#2d7a55" : pct >= 40 ? "#f59e0b" : "#9ca3af" }}
+                                >
+                                  {pct}%
+                                </p>
+                                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden mt-1">
+                                  <div
+                                    className="h-full rounded-full"
+                                    style={{
+                                      width: `${pct}%`,
+                                      background: pct >= 80 ? "#2d7a55" : pct >= 40 ? "#f59e0b" : "#9ca3af",
+                                    }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">{stats.filled}/{stats.total}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Preuves requises */}
+                    {(workflow.requiredEvidence?.length ?? 0) > 0 && (
+                      <div className="px-5 pb-4 border-t border-gray-100 pt-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3" />
+                          Preuves requises ({workflow.requiredEvidence.length})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {workflow.requiredEvidence.slice(0, 4).map(ev => (
+                            <span
+                              key={ev.id}
+                              className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100"
+                            >
+                              {ev.label}
+                            </span>
+                          ))}
+                          {workflow.requiredEvidence.length > 4 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                              +{workflow.requiredEvidence.length - 4} autres
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Accès rapide */}
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" size="sm" onClick={() => onNavigate?.("bibliotheque-workflows")}>
+              <Activity className="h-3.5 w-3.5 mr-1.5" />
+              Bibliothèque complète
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => onNavigate?.("bibliotheque-templates")}>
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+              Templates Excel
+            </Button>
+          </div>
+
+          {/* Dialog ajout référentiel */}
+          <Dialog open={showAddReferentiel} onOpenChange={setShowAddReferentiel}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-[#0F4C3A]" />
+                  Ajouter un référentiel
+                </DialogTitle>
+                <DialogDescription>
+                  Sélectionnez les référentiels ESG à activer pour ce dossier. Ils s'ajoutent aux référentiels déjà actifs.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 mt-2">
+                {WORKFLOW_LIBRARY.map(wf => {
+                  const isActive = workflowIds.includes(wf.id);
+                  return (
+                    <div
+                      key={wf.id}
+                      className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
+                        isActive
+                          ? "border-[#059669] bg-[#f0fdf4] opacity-60"
+                          : "border-gray-200 hover:border-[#059669] hover:bg-[#f0fdf4] cursor-pointer"
+                      }`}
+                      onClick={() => {
+                        if (isActive) return;
+                        updateDossier(dossierId, { selectedWorkflows: [...workflowIds, wf.id] });
+                        setShowAddReferentiel(false);
+                      }}
+                    >
+                      <span className="text-2xl leading-none flex-shrink-0">{wf.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="font-semibold text-sm">{wf.name}</p>
+                          <span
+                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                            style={{ background: CATEGORY_COLOR[wf.category] + "18", color: CATEGORY_COLOR[wf.category] }}
+                          >
+                            {wf.category}
+                          </span>
+                          <span
+                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                            style={{ background: DIFFICULTY_COLOR[wf.difficulty] + "15", color: DIFFICULTY_COLOR[wf.difficulty] }}
+                          >
+                            {wf.difficulty}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{wf.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">⏱ {wf.estimatedDuration} · {wf.indicators.length} sections</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isActive ? (
+                          <span className="text-xs font-semibold text-[#059669] bg-[#d1fae5] px-2 py-1 rounded-full">
+                            Actif
+                          </span>
+                        ) : (
+                          <Button size="sm" className="bg-[#0F4C3A] hover:bg-[#0A3B2E] h-8">
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Ajouter
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ── Autres onglets ── */}
