@@ -106,7 +106,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     if (!acceptCGU) { toast.error('Accepte les CGU pour continuer'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: signupData, error } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
         options: {
@@ -122,9 +122,9 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
           },
         },
       });
-      // "Error sending confirmation email" = account created but SMTP failed
-      // Show confirmation screen anyway so signup isn't blocked
-      if (error && !error.message.includes('sending confirmation email')) throw error;
+      // If user was created (data.user exists), proceed regardless of SMTP errors
+      // Only throw if signup truly failed (no user created)
+      if (error && !signupData?.user) throw error;
 
       // Notify admin
       fetch('/api/notify-signup', {
