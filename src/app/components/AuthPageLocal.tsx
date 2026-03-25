@@ -111,27 +111,27 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     submittingRef.current = true;
     setLoading(true);
     try {
-      // Use server-side API to create user with email pre-confirmed
-      // (avoids Resend SMTP restriction on free plan)
-      const res = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: signupEmail,
-          password: signupPassword,
-          name: signupName,
-          role: signupRole === 'OTHER' ? 'VIEWER' : signupRole,
-          roleLabel: signupRole === 'OTHER' ? signupRoleCustom.trim() : undefined,
-          organizationId: crypto.randomUUID(),
-          organizationName: signupOrgName || 'Mon Organisation',
-          consentCGU: new Date().toISOString(),
-          consentAI: acceptAI ? new Date().toISOString() : null,
-        }),
+      // Standard Supabase signup — Supabase sends the confirmation email natively
+      const { data, error } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: signupPassword,
+        options: {
+          data: {
+            name: signupName,
+            role: signupRole === 'OTHER' ? 'VIEWER' : signupRole,
+            roleLabel: signupRole === 'OTHER' ? signupRoleCustom.trim() : undefined,
+            organizationId: crypto.randomUUID(),
+            organizationName: signupOrgName || 'Mon Organisation',
+            consentCGU: new Date().toISOString(),
+            consentAI: acceptAI ? new Date().toISOString() : null,
+          },
+        },
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Erreur lors de la création du compte');
 
-      // Notify admin
+      if (error) throw error;
+      if (!data.user) throw new Error('Erreur lors de la création du compte');
+
+      // Notify admin (fire-and-forget)
       fetch('/api/notify-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +144,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
       const friendlyError =
         msg.includes('User already registered') || msg.includes('already been registered')
           ? 'Un compte existe déjà avec cet email. Connecte-toi ou réinitialise ton mot de passe.'
-          : msg.includes('Email rate limit')
+          : msg.includes('Email rate limit') || msg.includes('over_email_send_rate_limit')
             ? 'Trop de tentatives. Attends quelques minutes avant de réessayer.'
             : msg.includes('invalid') && msg.toLowerCase().includes('email')
               ? 'Adresse email invalide.'
@@ -447,21 +447,48 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
           {view === 'signup-confirm' && (
             <div className="text-center space-y-6">
               <div className="mx-auto w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-[#059669]" />
+                <Mail className="w-10 h-10 text-[#059669]" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Compte créé !</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Vérifie ton email !</h1>
                 <p className="text-sm text-gray-500 mt-2">
-                  Ton compte <strong className="text-gray-700">{signupEmail}</strong> est prêt.<br />
-                  Tu peux te connecter immédiatement.
+                  Un email de confirmation a été envoyé à<br />
+                  <strong className="text-gray-700">{signupEmail}</strong>
                 </p>
               </div>
-              <Button className="w-full bg-[#059669] hover:bg-[#048558] h-11" onClick={() => {
+              <div className="bg-gray-50 rounded-xl p-4 text-left space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Prochaines étapes :</p>
+                {[
+                  'Ouvre l\'email de Solvid.IA',
+                  'Clique sur le lien de confirmation',
+                  'Reviens ici pour te connecter',
+                ].map((step, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-[#059669] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      {i + 1}
+                    </div>
+                    <span className="text-sm text-gray-700">{step}</span>
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => {
                 setLoginEmail(signupEmail);
                 setView('login');
               }}>
-                Se connecter <ArrowRight className="w-4 h-4 ml-2" />
+                Retour à la connexion
               </Button>
+              <p className="text-xs text-gray-400">
+                Email non reçu ?{' '}
+                <button
+                  className="text-[#059669] font-medium hover:underline"
+                  onClick={async () => {
+                    await supabase.auth.resend({ type: 'signup', email: signupEmail });
+                    toast.success('Email renvoyé !');
+                  }}
+                >
+                  Renvoyer
+                </button>
+              </p>
             </div>
           )}
 
