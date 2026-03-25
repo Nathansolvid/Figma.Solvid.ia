@@ -3,7 +3,7 @@
  * Design moderne style app (split-screen branding + form)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -49,6 +49,9 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
 
   // Reset
   const [resetEmail, setResetEmail] = useState('');
+
+  // Anti double-submit lock
+  const submittingRef = useRef(false);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
@@ -101,9 +104,11 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
   // ── Signup submit ──────────────────────────────────────────────────────────
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return; // prevent double-click
     if (!signupName) { toast.error('Ton nom est requis'); return; }
     if (signupRole === 'OTHER' && !signupRoleCustom.trim()) { toast.error('Précise ton rôle'); return; }
     if (!acceptCGU) { toast.error('Accepte les CGU pour continuer'); return; }
+    submittingRef.current = true;
     setLoading(true);
     try {
       // Use server-side API to create user with email pre-confirmed
@@ -148,6 +153,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
                 : msg || 'Erreur lors de la création du compte';
       toast.error(friendlyError);
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
