@@ -222,6 +222,42 @@ async function ensurePeriodMigration(): Promise<void> {
   }
 }
 
+// ─── Security: clear all local data on user switch ───────────────────────────
+
+/**
+ * Clears all IDB stores when a different user logs in.
+ * Prevents cross-account data leakage on shared browsers.
+ */
+export async function clearIDBForNewSession(): Promise<void> {
+  // Clear solvid-ia-db stores (vsme_values, mission_notes)
+  try {
+    const db = await getDB();
+    const tx = db.transaction(['vsme_values', 'mission_notes'], 'readwrite');
+    await tx.objectStore('vsme_values').clear();
+    await tx.objectStore('mission_notes').clear();
+    await tx.done;
+  } catch (e) {
+    console.warn('[IDB] clearIDBForNewSession stores error:', e);
+  }
+
+  // Clear dataProvider (dossiers in solvid_local_v1)
+  try {
+    await dataProvider.init();
+    const dossiers = await dataProvider.store.list('dossiers' as any);
+    for (const d of dossiers) {
+      await dataProvider.store.delete('dossiers' as any, (d as any).id).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[IDB] clearIDBForNewSession dossiers error:', e);
+  }
+
+  // Reset migration flag so next login re-migrates if needed
+  _dossierMigrationDone = false;
+  _migrationDone = false;
+  _db = null; // Force DB reconnect
+  console.log('[Security] IDB cleared for new user session');
+}
+
 // ─── Dossiers (delegated to dataProvider — single source of truth) ───────────
 // All dossier CRUD now goes through dataProvider.store (solvid_local_v1 DB).
 // This eliminates the split-brain risk of having dossiers in two IndexedDB databases.

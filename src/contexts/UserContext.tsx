@@ -1,8 +1,9 @@
 // Auth via Supabase — server-side credentials, no localStorage passwords
-import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
 import { Role } from '@/permissions';
 
 import { dataProvider } from '@/services/dataProvider';
+import { clearIDBForNewSession } from '@/services/idbService';
 import { packService } from '@/services/packService';
 import { collaborationService } from '@/services/collaborationService';
 import type { SubscriptionInfo } from '@/services/invitationService';
@@ -143,6 +144,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          const newUserId = session.user.id;
+          // Clear IDB if a different user logs in (prevents cross-account data leakage)
+          const lastUserId = sessionStorage.getItem('solvid_last_uid');
+          if (event === 'SIGNED_IN' && lastUserId && lastUserId !== newUserId) {
+            clearIDBForNewSession().catch(() => {});
+          }
+          sessionStorage.setItem('solvid_last_uid', newUserId);
+
           const user = mapSupabaseUser(session.user);
           activateSync(user);
           setCurrentUserState(user);
@@ -174,9 +183,32 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } finally {
       syncEngine.disableSync();
       collaborationService.disconnect();
+      // Clear all session storage (API keys, temp credentials)
+      sessionStorage.clear();
       setCurrentUser(null);
     }
   }, [setCurrentUser]);
+
+  // ── Session inactivity timeout (30 min) ────────────────────────────────────
+  const logoutRef = useRef(logout);
+  useEffect(() => { logoutRef.current = logout; }, [logout]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const TIMEOUT_MS = 30 * 60 * 1000;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => logoutRef.current(), TIMEOUT_MS);
+    };
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'] as const;
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [currentUser?.id]);
 
   const value = useMemo(() => ({
     currentUser,
