@@ -417,13 +417,20 @@ export function Parametres() {
   const [aiTesting, setAiTesting] = useState(false);
   const [aiKeySaving, setAiKeySaving] = useState(false);
 
-  // Check if org already has a key configured (via proxy test on mount)
+  // Check if org already has a key configured — direct DB query, no proxy call.
+  // Avoids false "Clé API invalide" errors during first login for new accounts.
   useEffect(() => {
     const checkExistingKey = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const result = await validateApiKey("");
-      setAiStatus(result.valid ? "connected" : "none");
+      const orgId = session.user.user_metadata?.organizationId;
+      if (!orgId) return;
+      const { data } = await supabase
+        .from("org_secrets")
+        .select("anthropic_key_encrypted")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      setAiStatus(data?.anthropic_key_encrypted ? "connected" : "none");
     };
     checkExistingKey();
   }, []);

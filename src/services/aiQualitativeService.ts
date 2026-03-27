@@ -238,9 +238,11 @@ Pour chaque section : analyse les données fournies, interpète-les dans le cont
   if (!response.ok) {
     let errMsg = `Erreur HTTP ${response.status}`;
     try {
-      const err = await response.json();
-      errMsg = (err as { error?: { message?: string } })?.error?.message ?? errMsg;
+      const err = await response.json() as { error?: string | { message?: string } };
+      if (typeof err.error === "string") errMsg = err.error;
+      else if (typeof err.error?.message === "string") errMsg = err.error.message;
     } catch { /* ignore */ }
+    if (response.status === 404) throw new Error("Clé Anthropic non configurée. Rendez-vous dans Réglages → IA pour la configurer.");
     throw new Error(errMsg);
   }
 
@@ -291,12 +293,13 @@ Rédige directement le texte à insérer dans le rapport (sans guillemets, sans 
   if (!response.ok) {
     let errMsg = `Erreur HTTP ${response.status}`;
     try {
-      const err = await response.json();
-      errMsg =
-        (err as { error?: { message?: string } })?.error?.message ?? errMsg;
+      const err = await response.json() as { error?: string | { message?: string } };
+      if (typeof err.error === "string") errMsg = err.error;
+      else if (typeof err.error?.message === "string") errMsg = err.error.message;
     } catch {
       // ignore parse error
     }
+    if (response.status === 404) throw new Error("Clé Anthropic non configurée. Rendez-vous dans Réglages → IA pour la configurer.");
     throw new Error(errMsg);
   }
 
