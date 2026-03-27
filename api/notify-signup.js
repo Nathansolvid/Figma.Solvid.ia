@@ -10,9 +10,18 @@ const recentNotifs = new Map(); // email → timestamp
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
+  // ── Shared secret validation ────────────────────────────────────────────────
+  const internalSecret = process.env.INTERNAL_SECRET;
+  const providedSecret = req.headers['x-internal-secret'];
+
+  if (!internalSecret || providedSecret !== internalSecret) {
+    return res.status(401).json({ error: 'Non autorisé' });
+  }
+  // ── End shared secret validation ────────────────────────────────────────────
+
   const { name, email, org, role } = req.body || {};
   const apiKey = process.env.RESEND_API_KEY;
-  const adminEmail = process.env.ADMIN_NOTIFY_EMAIL || 'nathan.glatt@icloud.com';
+  const adminEmail = process.env.ADMIN_NOTIFY_EMAIL;
 
   // Dedup: skip if same email notified in last 2 minutes
   if (email) {
@@ -29,6 +38,11 @@ export default async function handler(req, res) {
 
   if (!apiKey) {
     console.warn('[notify-signup] RESEND_API_KEY not set');
+    return res.status(200).json({ ok: true, sent: false });
+  }
+
+  if (!adminEmail) {
+    console.warn('[notify-signup] ADMIN_NOTIFY_EMAIL not set');
     return res.status(200).json({ ok: true, sent: false });
   }
 
