@@ -13,10 +13,12 @@ import { createClient } from '@supabase/supabase-js';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { email, password, name, role, organizationId, organizationName, consentCGU, consentAI, roleLabel } = req.body || {};
+  // ── JWT validation ──────────────────────────────────────────────────────────
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email et mot de passe requis' });
+  if (!token) {
+    return res.status(401).json({ error: 'Token manquant' });
   }
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -25,6 +27,29 @@ export default async function handler(req, res) {
   if (!supabaseUrl || !serviceRoleKey) {
     console.error('[create-user] Missing SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_URL');
     return res.status(500).json({ error: 'Configuration serveur manquante' });
+  }
+
+  // Validate token with anon client (no service role needed for getUser)
+  const supabaseAuth = createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY || serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { data: { user: caller }, error: authError } = await supabaseAuth.auth.getUser(token);
+
+  if (authError || !caller) {
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+
+  const callerRole = caller.user_metadata?.role || '';
+  if (callerRole !== 'SOLVID_ADMIN') {
+    return res.status(403).json({ error: 'Accès refusé — rôle ADMIN requis' });
+  }
+  // ── End JWT validation ──────────────────────────────────────────────────────
+
+  const { email, password, name, role, organizationId, organizationName, consentCGU, consentAI, roleLabel } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email et mot de passe requis' });
   }
 
   // Admin client — service role bypasses RLS and email confirmation
