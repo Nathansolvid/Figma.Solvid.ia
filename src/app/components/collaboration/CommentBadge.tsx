@@ -6,7 +6,9 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/app/components/ui/badge";
 import { MessageSquare } from "lucide-react";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+const _supaUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const projectId = _supaUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? '';
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 interface CommentBadgeProps {
   entityType: "indicator" | "pack" | "dossier" | "evidence" | "checklist-item";

@@ -11,7 +11,9 @@ import { MessageSquare, Send, Edit2, Trash2, Reply, MoreVertical } from "lucide-
 import { CommentInput } from "@/app/components/collaboration/CommentInput";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+const _supaUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const projectId = _supaUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? '';
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 interface Comment {
   id: string;

@@ -5,7 +5,9 @@
 import { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+const _supaUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const projectId = _supaUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? '';
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 export function ServerStatusBanner() {
   const [status, setStatus] = useState<'checking' | 'healthy' | 'deploying' | 'error'>('checking');

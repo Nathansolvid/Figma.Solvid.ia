@@ -4,7 +4,6 @@
 // Hook pour opérations en masse sur les indicateurs
 
 import { toast } from "sonner";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
 
 export function useBulkOperations() {
   const bulkMarkAsProvided = async (indicatorIds: string[]) => {

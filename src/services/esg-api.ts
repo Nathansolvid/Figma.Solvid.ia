@@ -3,7 +3,9 @@
  * NO DEAD CLICKS - Every action persists to backend
  */
 
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+const _supaUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const projectId = _supaUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] ?? '';
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-aa780fc8`;
 
