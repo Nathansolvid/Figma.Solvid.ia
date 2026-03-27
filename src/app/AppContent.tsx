@@ -470,7 +470,7 @@ export function AppContent() {
                   <button
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:shadow-lg"
                     style={{ background: 'white', color: '#0A3B2E' }}
-                    onClick={() => navigateToView('creation-dossier')}
+                    onClick={() => { console.log('[DIAG][dashboard-btn] Créer un dossier clicked, navigating to creation-dossier'); navigateToView('creation-dossier'); }}
                   >
                     <Plus className="h-5 w-5" />
                     Créer un dossier

@@ -57,6 +57,7 @@ export function GuardedAction({
 
   // Vérifier permission
   const allowed = currentUser ? can(currentUser.role, action, resource) : false;
+  console.log('[DIAG][GuardedAction]', action, '| role:', currentUser?.role, '| allowed:', allowed);
 
   // Handler qui protège contre l'exécution si non autorisé
   const handleClick = () => {
