@@ -192,63 +192,22 @@ class AuthService {
   // ========== ADMIN SEED ==========
 
   /**
-   * Seed default admin on first launch if no users exist.
+   * Triggers server-side admin seeding via /api/seed-admin.
+   * Credentials are never exposed to the client — they live in
+   * SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD server env vars only.
    */
   async seedAdminIfNeeded(): Promise<void> {
-    const creds = this.getLocalCredentials();
+    const internalSecret = import.meta.env.VITE_INTERNAL_SECRET;
+    if (!internalSecret) return;
 
-    // ── Admin accounts to seed — credentials from env vars only ─────────
-    // Set VITE_ADMIN_EMAIL, VITE_ADMIN_PASSWORD, VITE_ADMIN_NAME in Vercel env vars
-    const ADMIN_ACCOUNTS = [
-      {
-        email: import.meta.env.VITE_ADMIN_EMAIL,
-        password: import.meta.env.VITE_ADMIN_PASSWORD,
-        name: import.meta.env.VITE_ADMIN_NAME || 'Administrateur',
-      },
-    ].filter(a => a.email && a.password);
-
-    if (ADMIN_ACCOUNTS.length === 0) return;
-
-    // Check if seed already done (at least one admin exists)
-    const allSeeded = ADMIN_ACCOUNTS.every(a => creds[a.email!]);
-    if (allSeeded) return;
-
-    // Create shared org (once)
-    const orgId = 'solvid-org-001';
-    const organization: Organization = {
-      id: orgId,
-      name: 'Solvid',
-      createdAt: new Date().toISOString(),
-    };
-    try { await dataProvider.store.create('organizations', organization); } catch { /* exists */ }
-
-    // Seed each admin
-    for (const admin of ADMIN_ACCOUNTS) {
-      if (creds[admin.email!]) continue; // Already seeded
-
-      const adminId = uuidv4();
-      const passwordHash = await this.hashPassword(admin.password!);
-      creds[admin.email!] = { passwordHash, userId: adminId, version: 2 };
-
-      const user: User = {
-        id: adminId,
-        email: admin.email!,
-        name: admin.name,
-        role: 'ADMIN',
-        organizationId: orgId,
-        createdAt: new Date().toISOString(),
-        status: 'approved',
-        consentCGU: new Date().toISOString(),
-      };
-      try { await dataProvider.store.create('users', user); } catch { /* exists */ }
-
-      invitationService.activateSubscription(adminId, {
-        plan: 'enterprise',
-        expiresAt: new Date(Date.now() + 730 * 24 * 60 * 60 * 1000).toISOString(),
+    try {
+      await fetch('/api/seed-admin', {
+        method: 'POST',
+        headers: { 'x-internal-secret': internalSecret },
       });
+    } catch {
+      // Best-effort — no-op if server unavailable (local dev without vercel dev)
     }
-
-    this.saveLocalCredentials(creds);
   }
 
   // ========== PUBLIC API ==========
