@@ -1,8 +1,9 @@
 /**
  * Service IA pour la génération de données qualitatives ESG
- * Utilise l'API Anthropic Claude (direct browser access via anthropic-dangerous-direct-browser-access)
- * La clé API est stockée en sessionStorage avec obfuscation (non persistée entre sessions)
+ * Les appels Anthropic passent par /api/ai-proxy (Vercel serverless).
+ * La clé API est lue depuis org_secrets en Supabase — jamais exposée au client.
  */
+import { supabase } from '@/lib/supabase';
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 export const AI_KEY_STORAGE = "solvid_ai_api_key";
@@ -100,20 +101,24 @@ export function setStoredIndicatorModel(model: string): void {
 }
 
 // ─── API key validation ──────────────────────────────────────────────────────
+// Note : valide la clé stockée dans org_secrets via le proxy (pas la clé fournie en paramètre).
+// Le paramètre apiKey est conservé pour compatibilité — sera retiré en Phase 4.
 export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { valid: false, error: "Non authentifié" };
+
+    const response = await fetch("/api/ai-proxy", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
+        "Authorization": `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
         model: "claude-3-5-haiku-20241022",
         max_tokens: 1,
         messages: [{ role: "user", content: "test" }],
+        organization_id: session.user.user_metadata?.organizationId,
       }),
     });
     if (response.ok) return { valid: true };
@@ -259,19 +264,21 @@ Génère maintenant un rapport ESG structuré. Structure exacte à respecter :
 ---
 Pour chaque section : analyse les données fournies, interpète-les dans le contexte d'une PME, et complète avec des éléments qualitatifs pertinents.`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non authentifié");
+
+  const response = await fetch("/api/ai-proxy", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "Authorization": `Bearer ${session.access_token}`,
     },
     body: JSON.stringify({
       model: getStoredReportModel(),
       max_tokens: 4000,
       system: REPORT_SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
+      organization_id: session.user.user_metadata?.organizationId,
     }),
   });
 
@@ -310,19 +317,21 @@ Exercice fiscal : ${options.fiscalYear ?? "2024"}${
 
 Rédige directement le texte à insérer dans le rapport (sans guillemets, sans titre, sans introduction).`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non authentifié");
+
+  const response = await fetch("/api/ai-proxy", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "Authorization": `Bearer ${session.access_token}`,
     },
     body: JSON.stringify({
       model: getStoredIndicatorModel(),
       max_tokens: 500,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
+      organization_id: session.user.user_metadata?.organizationId,
     }),
   });
 

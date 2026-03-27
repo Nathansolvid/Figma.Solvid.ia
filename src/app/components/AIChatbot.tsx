@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { getStoredApiKey } from "@/services/aiQualitativeService";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/contexts/UserContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ChatMessage {
@@ -107,6 +109,7 @@ function getContextualSuggestions(): string[] {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function AIChatbot({ context }: AIChatbotProps) {
+  const { currentUser } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -137,11 +140,8 @@ export function AIChatbot({ context }: AIChatbotProps) {
     const messageText = text ?? input.trim();
     if (!messageText || isLoading) return;
 
+    // getStoredApiKey() conservé pour compatibilité — sera retiré en Phase 4
     const apiKey = getStoredApiKey();
-    if (!apiKey) {
-      setError("Clé API Anthropic non configurée. Allez dans Réglages → IA pour la renseigner.");
-      return;
-    }
 
     setError(null);
     setInput("");
@@ -185,19 +185,25 @@ export function AIChatbot({ context }: AIChatbotProps) {
         },
       ];
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Session expirée. Veuillez vous reconnecter.");
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/ai-proxy", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           model: "claude-3-5-haiku-20241022",
           max_tokens: 1024,
           system: CHATBOT_SYSTEM_PROMPT,
           messages: apiMessages,
+          organization_id: currentUser?.organizationId,
         }),
       });
 
