@@ -102,7 +102,7 @@ export function can(
   switch (action) {
     // ==================== DOSSIERS ====================
     case Action.CREATE_DOSSIER:
-      return [Role.ADMIN, Role.CLIENT_OWNER, Role.CONSULTANT].includes(role);
+      return [Role.ADMIN, Role.CLIENT_OWNER, Role.CONSULTANT, Role.CLIENT_CONTRIBUTOR, Role.AUDITOR, Role.VIEWER].includes(role);
       
     case Action.VIEW_DOSSIER:
       return [Role.ADMIN, Role.CLIENT_OWNER, Role.CLIENT_CONTRIBUTOR, Role.CONSULTANT, Role.AUDITOR].includes(role);
