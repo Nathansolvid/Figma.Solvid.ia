@@ -6,7 +6,6 @@
 import { supabase } from '@/lib/supabase';
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
-export const AI_KEY_STORAGE = "solvid_ai_api_key";
 export const AI_MODEL_REPORT_STORAGE = "solvid_ai_model_report";
 export const AI_MODEL_INDICATOR_STORAGE = "solvid_ai_model_indicator";
 
@@ -20,52 +19,6 @@ export const AVAILABLE_INDICATOR_MODELS = [
   { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (recommandé)' },
   { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
 ];
-
-// ─── Simple obfuscation (prevents casual exposure in DevTools) ──────────────
-const _OBF_PREFIX = "sk_obf:";
-function _obfuscate(plain: string): string {
-  return _OBF_PREFIX + btoa(plain.split('').reverse().join(''));
-}
-function _deobfuscate(stored: string): string {
-  if (!stored.startsWith(_OBF_PREFIX)) return stored; // legacy plain-text fallback
-  return atob(stored.slice(_OBF_PREFIX.length)).split('').reverse().join('');
-}
-
-// ─── API key getter/setter ───────────────────────────────────────────────────
-export function getStoredApiKey(): string | null {
-  try {
-    // Environment variable takes priority (dev mode)
-    const envKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (envKey && typeof envKey === 'string' && envKey.trim()) return envKey.trim();
-    // sessionStorage first, then migrate from old localStorage
-    const sessVal = sessionStorage.getItem(AI_KEY_STORAGE);
-    if (sessVal) return _deobfuscate(sessVal);
-    // Migrate old localStorage key if present
-    const oldVal = localStorage.getItem(AI_KEY_STORAGE);
-    if (oldVal) {
-      sessionStorage.setItem(AI_KEY_STORAGE, _obfuscate(oldVal));
-      localStorage.removeItem(AI_KEY_STORAGE);
-      return oldVal;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredApiKey(key: string): void {
-  try {
-    if (key.trim()) {
-      sessionStorage.setItem(AI_KEY_STORAGE, _obfuscate(key.trim()));
-    } else {
-      sessionStorage.removeItem(AI_KEY_STORAGE);
-    }
-    // Always clean up old localStorage entry
-    localStorage.removeItem(AI_KEY_STORAGE);
-  } catch {
-    // ignore storage errors
-  }
-}
 
 // ─── Model getters/setters ───────────────────────────────────────────────────
 export function getStoredReportModel(): string {

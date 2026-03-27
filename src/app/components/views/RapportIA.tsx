@@ -21,7 +21,6 @@ import {
   Leaf,
   AlertCircle,
   Eye,
-  Settings,
   CheckCircle2,
 } from "lucide-react";
 import { useDossiers } from "@/contexts/DossierContext";
@@ -30,7 +29,6 @@ import { MODULE_B, PILIER_COLOR } from "@/data/vsme-data";
 import { getPeriodsForDossier } from "@/services/idbService";
 import { toast } from "sonner";
 import {
-  getStoredApiKey,
   getStoredReportModel,
   AVAILABLE_REPORT_MODELS,
   generateFullReport,
@@ -137,8 +135,6 @@ export function RapportIA({ dossierId, onBack }: RapportIAProps) {
   const [copied, setCopied]           = useState(false);
 
   // IA configuration (centralisée dans Réglages)
-  const storedKey   = getStoredApiKey();
-  const hasApiKey   = !!storedKey;
   const modelId     = getStoredReportModel();
   const modelLabel  = AVAILABLE_REPORT_MODELS.find(m => m.id === modelId)?.label ?? modelId;
 
@@ -199,11 +195,6 @@ export function RapportIA({ dossierId, onBack }: RapportIAProps) {
   }, [filledDps]);
 
   const handleGenerate = async () => {
-    const key = getStoredApiKey();
-    if (!key) {
-      setError("Clé API non configurée. Allez dans Réglages → Intelligence Artificielle.");
-      return;
-    }
     if (filledDps.length === 0) {
       setError("Aucune donnée saisie. Renseignez d'abord les indicateurs VSME.");
       return;
@@ -218,7 +209,7 @@ export function RapportIA({ dossierId, onBack }: RapportIAProps) {
         dossier?.fiscalYear ?? "2024",
         dossier?.missionType ?? "Conseil",
         userContext,
-        key
+        ""
       );
       setReport(text);
       setActiveTab("rapport");
@@ -491,46 +482,29 @@ export function RapportIA({ dossierId, onBack }: RapportIAProps) {
             </div>
             <CardContent className="p-5 space-y-4">
               {/* Statut IA */}
-              {hasApiKey ? (
-                <div
-                  className="flex items-center gap-3 rounded-lg px-4 py-3"
-                  style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
-                >
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: "#2d7a55" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold" style={{ color: "#2d7a55" }}>
-                      IA configurée
-                    </p>
-                    <p className="text-[11px]" style={{ color: "#6b7280" }}>
-                      Modèle : {modelLabel}
-                    </p>
-                  </div>
-                  <button
-                    className="text-[11px] underline flex-shrink-0"
-                    style={{ color: "#9ca3af" }}
-                    onClick={() => {
-                      toast.info("Ouvrez Réglages → Intelligence Artificielle pour modifier la configuration IA");
-                    }}
-                  >
-                    Modifier
-                  </button>
+              <div
+                className="flex items-center gap-3 rounded-lg px-4 py-3"
+                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}
+              >
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: "#2d7a55" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold" style={{ color: "#2d7a55" }}>
+                    IA prête
+                  </p>
+                  <p className="text-[11px]" style={{ color: "#6b7280" }}>
+                    Modèle : {modelLabel}
+                  </p>
                 </div>
-              ) : (
-                <div
-                  className="flex items-center gap-3 rounded-lg px-4 py-3"
-                  style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                <button
+                  className="text-[11px] underline flex-shrink-0"
+                  style={{ color: "#9ca3af" }}
+                  onClick={() => {
+                    toast.info("Ouvrez Réglages → Intelligence Artificielle pour modifier la configuration IA");
+                  }}
                 >
-                  <Settings className="w-4 h-4 flex-shrink-0" style={{ color: "#f59e0b" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold" style={{ color: "#92400e" }}>
-                      Clé API non configurée
-                    </p>
-                    <p className="text-[11px]" style={{ color: "#b45309" }}>
-                      Configurez votre clé API Anthropic dans Réglages → Intelligence Artificielle
-                    </p>
-                  </div>
-                </div>
-              )}
+                  Modifier
+                </button>
+              </div>
 
               {/* Contexte supplémentaire */}
               <div className="space-y-2">
@@ -563,7 +537,7 @@ export function RapportIA({ dossierId, onBack }: RapportIAProps) {
                 className="w-full gap-2 font-semibold text-base py-5"
                 style={{ background: "#1a5f3f", color: "white" }}
                 onClick={handleGenerate}
-                disabled={loading || filledDps.length === 0 || !hasApiKey}
+                disabled={loading || filledDps.length === 0}
               >
                 {loading ? (
                   <>

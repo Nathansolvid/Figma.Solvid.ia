@@ -43,8 +43,6 @@ import { MODULE_B, PILIER_COLOR, PILIER_BG, DATAPOINT_TYPES, DROPDOWN_OPTIONS, t
 import { cn } from "@/app/components/ui/utils";
 import { toast } from "sonner";
 import {
-  getStoredApiKey,
-  setStoredApiKey,
   generateQualitativeText,
 } from "@/services/aiQualitativeService";
 import { getWorkflowById, getSectionsForWorkflow } from "@/utils/workflowLibrary";
@@ -94,8 +92,6 @@ function AIAssistPanel({
   fiscalYear?: string;
   onClose: () => void;
 }) {
-  const [apiKey, setApiKey]       = useState(getStoredApiKey() ?? "");
-  const [showKey, setShowKey]     = useState(!getStoredApiKey());
   const [userContext, setUserContext] = useState("");
   const [result, setResult]       = useState("");
   const [loading, setLoading]     = useState(false);
@@ -103,8 +99,6 @@ function AIAssistPanel({
   const [copied, setCopied]       = useState(false);
 
   const handleGenerate = async () => {
-    const key = apiKey.trim();
-    if (!key) { setShowKey(true); setError("Veuillez entrer une clé API Anthropic."); return; }
     setLoading(true);
     setError("");
     setResult("");
@@ -118,9 +112,8 @@ function AIAssistPanel({
           fiscalYear,
           userContext: userContext || undefined,
         },
-        key
+        ""
       );
-      setStoredApiKey(key);
       setResult(text);
     } catch (e) {
       setError((e as Error).message ?? "Erreur inconnue");
@@ -204,68 +197,6 @@ function AIAssistPanel({
             <p className="text-sm font-medium" style={{ color: "#1a2e24" }}>
               {panel.intitule}
             </p>
-          </div>
-
-          {/* Clé API */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold" style={{ color: "#4a6b57" }}>
-                Clé API Anthropic
-              </label>
-              <button
-                className="text-[11px] underline"
-                style={{ color: "#9ca3af" }}
-                onClick={() => setShowKey(!showKey)}
-              >
-                {showKey ? "Masquer" : "Modifier"}
-              </button>
-            </div>
-            {showKey ? (
-              <>
-                {!getStoredApiKey() && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-                    <p className="text-xs font-semibold text-amber-800 mb-1">🔑 Configuration requise</p>
-                    <p className="text-xs text-amber-700">
-                      Pour utiliser l'assistant IA, vous avez besoin d'une clé API Anthropic.
-                      C'est gratuit pour commencer !
-                    </p>
-                  </div>
-                )}
-                <input
-                  type="password"
-                  placeholder="sk-ant-api03-..."
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-                  style={{
-                    border: "1.5px solid #e2e8f0",
-                    background: "#f8fafc",
-                    color: "#1a2e24",
-                  }}
-                  onFocus={e => { e.target.style.borderColor = "#1a5f3f"; }}
-                  onBlur={e => { e.target.style.borderColor = "#e2e8f0"; }}
-                />
-              </>
-            ) : (
-              <div
-                className="text-xs py-2 px-3 rounded-lg"
-                style={{ background: "#f0fdf4", color: "#2d7a55", border: "1px solid #bbf7d0" }}
-              >
-                ✓ Clé configurée
-              </div>
-            )}
-            <p className="text-[11px] mb-2" style={{ color: "#9ca3af" }}>
-              La clé est stockée localement dans votre navigateur.
-            </p>
-            <a
-              href="https://console.anthropic.com/settings/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-              style={{ background: "#E8F3F0", color: "#1a5f3f" }}
-            >
-              🔗 Obtenir une clé gratuite sur console.anthropic.com →
-            </a>
           </div>
 
           {/* Contexte optionnel */}
@@ -1347,15 +1278,9 @@ export function SaisieDossier({ dossierId, workflowId, onBack, onNavigate: _onNa
           <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "#52B788" }} />
           <div className="flex-1">
             <p className="text-sm font-semibold text-white">Assistant IA disponible</p>
-            {getStoredApiKey() ? (
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
-                Cliquez sur le bouton ✨ qui apparaît sur les champs qualitatifs pour rédiger automatiquement avec Claude
-              </p>
-            ) : (
-              <p className="text-xs" style={{ color: "#f59e0b" }}>
-                ⚠️ Clé API non configurée — cliquez sur ✨ sur un champ qualitatif pour la configurer
-              </p>
-            )}
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+              Cliquez sur le bouton ✨ qui apparaît sur les champs qualitatifs pour rédiger automatiquement avec Claude
+            </p>
           </div>
           <span
             className="text-[10px] font-bold px-2 py-1 rounded-full uppercase flex-shrink-0"

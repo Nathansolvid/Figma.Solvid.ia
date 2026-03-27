@@ -19,7 +19,6 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
-import { getStoredApiKey } from "@/services/aiQualitativeService";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/contexts/UserContext";
 
@@ -139,9 +138,6 @@ export function AIChatbot({ context }: AIChatbotProps) {
   const sendMessage = async (text?: string) => {
     const messageText = text ?? input.trim();
     if (!messageText || isLoading) return;
-
-    // getStoredApiKey() conservé pour compatibilité — sera retiré en Phase 4
-    const apiKey = getStoredApiKey();
 
     setError(null);
     setInput("");

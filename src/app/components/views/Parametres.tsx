@@ -47,13 +47,13 @@ import {
 import { Badge } from "@/app/components/ui/badge";
 import { toast } from "sonner";
 import {
-  getStoredApiKey, setStoredApiKey,
   getStoredReportModel, setStoredReportModel,
   getStoredIndicatorModel, setStoredIndicatorModel,
   validateApiKey,
   AVAILABLE_REPORT_MODELS,
   AVAILABLE_INDICATOR_MODELS,
 } from "@/services/aiQualitativeService";
+import { supabase } from "@/lib/supabase";
 import {
   invitationService,
   Invitation,
@@ -409,27 +409,61 @@ export function Parametres() {
   };
 
   // ─── AI section state ────────────────────────────────────────────────────
-  const [aiApiKey, setAiApiKey] = useState(getStoredApiKey() ?? "");
+  const [newApiKey, setNewApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [aiReportModel, setAiReportModel] = useState(getStoredReportModel());
   const [aiIndicatorModel, setAiIndicatorModel] = useState(getStoredIndicatorModel());
-  const [aiStatus, setAiStatus] = useState<"connected" | "none" | "invalid" | null>(
-    getStoredApiKey() ? "connected" : "none"
-  );
+  const [aiStatus, setAiStatus] = useState<"connected" | "none" | "invalid" | null>(null);
   const [aiTesting, setAiTesting] = useState(false);
+  const [aiKeySaving, setAiKeySaving] = useState(false);
 
-  const handleTestAiConnection = async () => {
-    if (!aiApiKey.trim()) {
-      setAiStatus("none");
-      toast.error("Aucune clé API", { description: "Veuillez entrer une clé API Anthropic" });
+  // Check if org already has a key configured (via proxy test on mount)
+  useEffect(() => {
+    const checkExistingKey = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const result = await validateApiKey("");
+      setAiStatus(result.valid ? "connected" : "none");
+    };
+    checkExistingKey();
+  }, []);
+
+  const handleSaveApiKey = async () => {
+    if (!newApiKey.trim() || !newApiKey.trim().startsWith("sk-ant-")) {
+      toast.error("Clé invalide", { description: "La clé doit commencer par sk-ant-" });
       return;
     }
+    const orgId = user.currentUser?.organizationId;
+    if (!orgId) {
+      toast.error("Erreur", { description: "Organisation introuvable" });
+      return;
+    }
+    setAiKeySaving(true);
+    try {
+      const { error } = await supabase
+        .from("org_secrets")
+        .upsert(
+          { organization_id: orgId, anthropic_key_encrypted: newApiKey.trim() },
+          { onConflict: "organization_id" }
+        );
+      if (error) throw error;
+      setNewApiKey("");
+      setAiStatus("connected");
+      toast.success("Clé API enregistrée", { description: "La clé Anthropic a été sauvegardée de façon sécurisée" });
+    } catch (err: any) {
+      toast.error("Erreur de sauvegarde", { description: err?.message ?? "Impossible d'enregistrer la clé" });
+    } finally {
+      setAiKeySaving(false);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
     setAiTesting(true);
-    const result = await validateApiKey(aiApiKey.trim());
+    const result = await validateApiKey("");
     setAiTesting(false);
     if (result.valid) {
       setAiStatus("connected");
-      toast.success("Connexion IA réussie", { description: "La clé API est valide" });
+      toast.success("Connexion IA réussie", { description: "La clé API est valide et fonctionnelle" });
     } else {
       setAiStatus("invalid");
       toast.error("Connexion IA échouée", { description: result.error ?? "Erreur inconnue" });
@@ -437,11 +471,10 @@ export function Parametres() {
   };
 
   const handleSaveAiSettings = () => {
-    setStoredApiKey(aiApiKey);
     setStoredReportModel(aiReportModel);
     setStoredIndicatorModel(aiIndicatorModel);
-    toast.success("Configuration IA enregistrée", {
-      description: "Les paramètres de l'assistant IA ont été sauvegardés"
+    toast.success("Modèles IA enregistrés", {
+      description: "Les modèles Claude ont été sauvegardés"
     });
   };
 
@@ -1021,17 +1054,22 @@ export function Parametres() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* API Key */}
+          {/* API Key — saved server-side in org_secrets */}
           <div className="space-y-2">
             <Label htmlFor="ai-api-key">Clé API Anthropic</Label>
+            <p className="text-xs text-muted-foreground">
+              {aiStatus === "connected"
+                ? "Une clé est déjà configurée pour votre organisation. Saisissez une nouvelle clé pour la remplacer."
+                : "Saisissez votre clé Anthropic. Elle sera stockée de façon sécurisée côté serveur."}
+            </p>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Input
                   id="ai-api-key"
                   type={showApiKey ? "text" : "password"}
-                  placeholder="sk-ant-api03-..."
-                  value={aiApiKey}
-                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder={aiStatus === "connected" ? "••••••••••••••••••• (clé existante)" : "sk-ant-api03-..."}
+                  value={newApiKey}
+                  onChange={(e) => setNewApiKey(e.target.value)}
                 />
                 <button
                   type="button"
@@ -1041,6 +1079,13 @@ export function Parametres() {
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              <Button
+                variant="outline"
+                onClick={handleSaveApiKey}
+                disabled={aiKeySaving || !newApiKey.trim()}
+              >
+                {aiKeySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer la clé"}
+              </Button>
             </div>
           </div>
 
