@@ -74,6 +74,9 @@ export default async function handler(req, res) {
 
   const supabaseUrl      = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey   = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey          = process.env.VITE_SUPABASE_ANON_KEY;
+
+  console.log('[DIAG][ai-proxy] ENV CHECK — supabaseUrl:', !!supabaseUrl, '| serviceRoleKey:', !!serviceRoleKey, '| anonKey:', !!anonKey, '| anonKey prefix:', anonKey?.slice(0, 12));
 
   if (!supabaseUrl || !serviceRoleKey) {
     console.error('[ai-proxy] Missing env vars');
@@ -81,14 +84,16 @@ export default async function handler(req, res) {
   }
 
   // Client anon pour valider le JWT de l'utilisateur
-  const supabaseAnon = createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY || '', {
+  const supabaseAnon = createClient(supabaseUrl, anonKey || '', {
     auth: { autoRefreshToken: false, persistSession: false },
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
   const { data: { user }, error: authError } = await supabaseAnon.auth.getUser();
 
+  console.log('[DIAG][ai-proxy] getUser result — user:', user?.id, '| authError:', authError?.message);
   if (authError || !user) {
+    console.error('[DIAG][ai-proxy] JWT validation FAILED — returning 401. authError:', authError?.message);
     return res.status(401).json({ error: 'Token invalide ou expiré' });
   }
 

@@ -57,10 +57,12 @@ export function setStoredIndicatorModel(model: string): void {
 // Note : valide la clé stockée dans org_secrets via le proxy (pas la clé fournie en paramètre).
 // Le paramètre apiKey est conservé pour compatibilité — sera retiré en Phase 4.
 export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  console.log('[DIAG][validateApiKey] Called from:', new Error().stack?.split('\n')[2]?.trim());
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return { valid: false, error: "Non authentifié" };
+    if (!session) { console.log('[DIAG][validateApiKey] No session'); return { valid: false, error: "Non authentifié" }; }
 
+    console.log('[DIAG][validateApiKey] Calling /api/ai-proxy, orgId:', session.user.user_metadata?.organizationId);
     const response = await fetch("/api/ai-proxy", {
       method: "POST",
       headers: {
@@ -74,11 +76,13 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
         organization_id: session.user.user_metadata?.organizationId,
       }),
     });
+    console.log('[DIAG][validateApiKey] Proxy response status:', response.status);
     if (response.ok) return { valid: true };
-    if (response.status === 401) return { valid: false, error: "Clé API invalide" };
+    if (response.status === 401) { console.warn('[DIAG][validateApiKey] 401 → "Clé API invalide"'); return { valid: false, error: "Clé API invalide" }; }
     if (response.status === 429) return { valid: false, error: "Limite de requêtes atteinte" };
     return { valid: false, error: `Erreur HTTP ${response.status}` };
   } catch (err) {
+    console.error('[DIAG][validateApiKey] Exception:', err);
     return { valid: false, error: "Erreur de connexion" };
   }
 }
@@ -217,8 +221,10 @@ Génère maintenant un rapport ESG structuré. Structure exacte à respecter :
 ---
 Pour chaque section : analyse les données fournies, interpète-les dans le contexte d'une PME, et complète avec des éléments qualitatifs pertinents.`;
 
+  console.log('[DIAG][generateFullReport] Called, orgId:', undefined);
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Non authentifié");
+  if (!session) { console.error('[DIAG][generateFullReport] No session'); throw new Error("Non authentifié"); }
+  console.log('[DIAG][generateFullReport] orgId:', session.user.user_metadata?.organizationId);
 
   const response = await fetch("/api/ai-proxy", {
     method: "POST",
@@ -235,10 +241,12 @@ Pour chaque section : analyse les données fournies, interpète-les dans le cont
     }),
   });
 
+  console.log('[DIAG][generateFullReport] Proxy status:', response.status);
   if (!response.ok) {
     let errMsg = `Erreur HTTP ${response.status}`;
     try {
       const err = await response.json() as { error?: string | { message?: string } };
+      console.error('[DIAG][generateFullReport] Proxy error body:', err);
       if (typeof err.error === "string") errMsg = err.error;
       else if (typeof err.error?.message === "string") errMsg = err.error.message;
     } catch { /* ignore */ }
@@ -272,8 +280,10 @@ Exercice fiscal : ${options.fiscalYear ?? "2024"}${
 
 Rédige directement le texte à insérer dans le rapport (sans guillemets, sans titre, sans introduction).`;
 
+  console.log('[DIAG][generateQualitativeText] Called for indicator:', options.indicatorCode);
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Non authentifié");
+  if (!session) { console.error('[DIAG][generateQualitativeText] No session'); throw new Error("Non authentifié"); }
+  console.log('[DIAG][generateQualitativeText] orgId:', session.user.user_metadata?.organizationId);
 
   const response = await fetch("/api/ai-proxy", {
     method: "POST",
@@ -290,10 +300,12 @@ Rédige directement le texte à insérer dans le rapport (sans guillemets, sans 
     }),
   });
 
+  console.log('[DIAG][generateQualitativeText] Proxy status:', response.status);
   if (!response.ok) {
     let errMsg = `Erreur HTTP ${response.status}`;
     try {
       const err = await response.json() as { error?: string | { message?: string } };
+      console.error('[DIAG][generateQualitativeText] Proxy error body:', err);
       if (typeof err.error === "string") errMsg = err.error;
       else if (typeof err.error?.message === "string") errMsg = err.error.message;
     } catch {

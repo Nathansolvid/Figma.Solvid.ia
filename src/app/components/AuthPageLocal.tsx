@@ -111,6 +111,8 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
     submittingRef.current = true;
     setLoading(true);
     try {
+      // [DIAG] Trace signup
+      console.log('[DIAG][signup] Starting signUp for:', signupEmail);
       // Standard Supabase signup — Supabase sends the confirmation email natively
       const { data, error } = await supabase.auth.signUp({
         email: signupEmail,
@@ -128,6 +130,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
         },
       });
 
+      console.log('[DIAG][signup] Supabase signUp result — error:', error, '| user:', data.user?.id);
       if (error) throw error;
       if (!data.user) throw new Error('Erreur lors de la création du compte');
 
@@ -143,6 +146,7 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
 
       setView('signup-confirm');
     } catch (err: any) {
+      console.error('[DIAG][signup] CAUGHT ERROR — raw message:', err?.message, '| full err:', err);
       const msg = err?.message || '';
       const friendlyError =
         msg.includes('User already registered') || msg.includes('already been registered')
