@@ -134,7 +134,10 @@ export function AuthPageLocal({ onLogin, onNavigate }: AuthPageLocalProps) {
       // Notify admin (fire-and-forget)
       fetch('/api/notify-signup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-secret': import.meta.env.VITE_INTERNAL_SECRET || '',
+        },
         body: JSON.stringify({ name: signupName, email: signupEmail, org: signupOrgName, role: signupRole === 'OTHER' ? `Autre — ${signupRoleCustom}` : signupRole }),
       }).catch(() => {});
 
